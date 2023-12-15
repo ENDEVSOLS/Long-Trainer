@@ -7,6 +7,24 @@ import os
 import shutil
 import uuid
 import datetime
+from fastapi.middleware.cors import CORSMiddleware
+
+origins = [
+    # List the origins that are allowed to make requests to your FastAPI server
+    "http://localhost:8000",  # This can be your Flutter web's localhost if you're testing locally
+]
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 ALLOWED_EXTENSIONS = {".txt", ".pdf", ".md", ".markdown", ".html", ".csv", ".docx", ".jpg", ".jpeg", ".png"}
 
 def is_allowed_file(filename):
@@ -15,7 +33,6 @@ def is_allowed_file(filename):
 os.environ["OPENAI_API_KEY"] = "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"
 trainer = LongTrainer()
 
-app = FastAPI()
 
 class DeleteModelRequest(BaseModel):
     bot_id: str
