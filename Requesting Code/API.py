@@ -1,4 +1,4 @@
-from long_trainer import LongTrainer
+from trainer import LongTrainer
 from pydantic import BaseModel
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from typing import List

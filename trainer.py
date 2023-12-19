@@ -1,6 +1,6 @@
-from document_loaders import DocumentLoader, TextSplitter
-from doc_retrieval import DocRetriever
-from chain_bot import ChainBot
+from loaders import DocumentLoader, TextSplitter
+from retrieval import DocRetriever
+from bot import ChainBot
 from vision_bot import VisionMemory, VisionBot
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.chat_models import ChatOpenAI

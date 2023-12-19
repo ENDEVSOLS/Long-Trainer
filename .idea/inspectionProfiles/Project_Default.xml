@@ -1,0 +1,75 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <value>
+          <list size="61">
+            <item index="0" class="java.lang.String" itemvalue="tiktoken" />
+            <item index="1" class="java.lang.String" itemvalue="openai" />
+            <item index="2" class="java.lang.String" itemvalue="fastapi" />
+            <item index="3" class="java.lang.String" itemvalue="pydantic" />
+            <item index="4" class="java.lang.String" itemvalue="pytube" />
+            <item index="5" class="java.lang.String" itemvalue="langchain" />
+            <item index="6" class="java.lang.String" itemvalue="pypdf" />
+            <item index="7" class="java.lang.String" itemvalue="chromadb" />
+            <item index="8" class="java.lang.String" itemvalue="kubernetes" />
+            <item index="9" class="java.lang.String" itemvalue="rsa" />
+            <item index="10" class="java.lang.String" itemvalue="greenlet" />
+            <item index="11" class="java.lang.String" itemvalue="googleapis-common-protos" />
+            <item index="12" class="java.lang.String" itemvalue="huggingface-hub" />
+            <item index="13" class="java.lang.String" itemvalue="opentelemetry-proto" />
+            <item index="14" class="java.lang.String" itemvalue="deprecated" />
+            <item index="15" class="java.lang.String" itemvalue="opentelemetry-sdk" />
+            <item index="16" class="java.lang.String" itemvalue="pycodestyle" />
+            <item index="17" class="java.lang.String" itemvalue="numpy" />
+            <item index="18" class="java.lang.String" itemvalue="pyasn1" />
+            <item index="19" class="java.lang.String" itemvalue="httptools" />
+            <item index="20" class="java.lang.String" itemvalue="websocket-client" />
+            <item index="21" class="java.lang.String" itemvalue="fsspec" />
+            <item index="22" class="java.lang.String" itemvalue="pyasn1-modules" />
+            <item index="23" class="java.lang.String" itemvalue="requests-oauthlib" />
+            <item index="24" class="java.lang.String" itemvalue="onnxruntime" />
+            <item index="25" class="java.lang.String" itemvalue="filelock" />
+            <item index="26" class="java.lang.String" itemvalue="oauthlib" />
+            <item index="27" class="java.lang.String" itemvalue="pyreadline3" />
+            <item index="28" class="java.lang.String" itemvalue="websockets" />
+            <item index="29" class="java.lang.String" itemvalue="tokenizers" />
+            <item index="30" class="java.lang.String" itemvalue="annotated-types" />
+            <item index="31" class="java.lang.String" itemvalue="watchfiles" />
+            <item index="32" class="java.lang.String" itemvalue="python-docx" />
+            <item index="33" class="java.lang.String" itemvalue="pytest" />
+            <item index="34" class="java.lang.String" itemvalue="opentelemetry-exporter-otlp-proto-grpc" />
+            <item index="35" class="java.lang.String" itemvalue="black" />
+            <item index="36" class="java.lang.String" itemvalue="opentelemetry-api" />
+            <item index="37" class="java.lang.String" itemvalue="wrapt" />
+            <item index="38" class="java.lang.String" itemvalue="packaging" />
+            <item index="39" class="java.lang.String" itemvalue="sqlalchemy" />
+            <item index="40" class="java.lang.String" itemvalue="attrs" />
+            <item index="41" class="java.lang.String" itemvalue="opentelemetry-semantic-conventions" />
+            <item index="42" class="java.lang.String" itemvalue="graphlib-backport" />
+            <item index="43" class="java.lang.String" itemvalue="dataclasses-json" />
+            <item index="44" class="java.lang.String" itemvalue="regex" />
+            <item index="45" class="java.lang.String" itemvalue="platformdirs" />
+            <item index="46" class="java.lang.String" itemvalue="cachetools" />
+            <item index="47" class="java.lang.String" itemvalue="charset-normalizer" />
+            <item index="48" class="java.lang.String" itemvalue="aiohttp" />
+            <item index="49" class="java.lang.String" itemvalue="grpcio" />
+            <item index="50" class="java.lang.String" itemvalue="langsmith" />
+            <item index="51" class="java.lang.String" itemvalue="opentelemetry-exporter-otlp-proto-common" />
+            <item index="52" class="java.lang.String" itemvalue="google-auth" />
+            <item index="53" class="java.lang.String" itemvalue="docx2txt" />
+            <item index="54" class="java.lang.String" itemvalue="faiss-cpu" />
+            <item index="55" class="java.lang.String" itemvalue="unstructured" />
+            <item index="56" class="java.lang.String" itemvalue="rank_bm25" />
+            <item index="57" class="java.lang.String" itemvalue="json" />
+            <item index="58" class="java.lang.String" itemvalue="wikipedia" />
+            <item index="59" class="java.lang.String" itemvalue="uvicorn" />
+            <item index="60" class="java.lang.String" itemvalue="youtube-transcript-api" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
