@@ -31,14 +31,12 @@ class VisionMemory:
 
     def save_chat_history(self, query, answer):
         self.chat_history.append([query, answer])
-        print(self.chat_history)
         # for pair in self.chat_history:
         #     self.memory.save_context({"input": pair[0]}, {"answer": pair[1]})
         self.memory.save_context({"input": query}, {"answer": answer})
-        print(self.memory.load_memory_variables({}))
+        # print(self.memory.load_memory_variables({}))
 
     def generate_prompt(self, query, additional_context):
-        print(self.memory.load_memory_variables({}))
         memory_history = self.memory.load_memory_variables({})
         return self.prompt_template.format(context=f"you will answer the query from provided context: {additional_context}", chat_history=memory_history, question=query)
 
