@@ -4,7 +4,7 @@ setup(
     name='longtrainer',
     version='0.1.0',
     packages=find_packages(),
-    description='A production-ready alternative to Embedchain',
+    description='Produciton Ready LangChain',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     author='Endevsols',
