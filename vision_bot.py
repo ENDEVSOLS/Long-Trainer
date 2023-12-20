@@ -6,7 +6,6 @@ from langchain.schema.messages import HumanMessage, AIMessage
 import base64
 class VisionMemory:
     def __init__(self, token_limit, ensemble_retriever=None):
-        os.environ['OPENAI_API_KEY'] = "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"  # Replace with your API key
         model_name='gpt-4-1106-preview'
         self.llm = ChatOpenAI(model_name=model_name)
         self.memory = ConversationTokenBufferMemory(
