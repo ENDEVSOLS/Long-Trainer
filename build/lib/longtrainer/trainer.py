@@ -1,7 +1,7 @@
-from longtrainer.loaders import DocumentLoader, TextSplitter
-from longtrainer.retrieval  import DocRetriever
-from longtrainer.bot import ChainBot
-from longtrainer.vision_bot import VisionMemory, VisionBot
+from loaders import DocumentLoader, TextSplitter
+from retrieval import DocRetriever
+from bot import ChainBot
+from vision_bot import VisionMemory, VisionBot
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
