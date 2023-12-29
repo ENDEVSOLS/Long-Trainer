@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: longtrainer
-Version: 0.1.1
+Version: 0.1.2
 Summary: Produciton Ready LangChain
 Home-page: https://github.com/ENDEVSOLS/Long-Trainer
 Author: Endevsols
@@ -9,6 +9,7 @@ Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Description-Content-Type: text/markdown
+License-File: LICENSE
 Requires-Dist: openai==1.3.6
 Requires-Dist: faiss-cpu==1.7.4
 Requires-Dist: tiktoken==0.5.1
@@ -23,6 +24,8 @@ Requires-Dist: docx2txt==0.8
 Requires-Dist: fastapi==0.104.1
 Requires-Dist: uvicorn==0.23.2
 Requires-Dist: pydantic==1.10.7
+Requires-Dist: pymongo>=3.11
+Requires-Dist: python-docx
 
 
 # LongTrainer - Production-Ready LangChain

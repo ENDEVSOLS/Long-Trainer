@@ -17,9 +17,10 @@ class VisionMemory:
         )
         self.chat_history = []
         self.prompt_template = '''
-        As an assistant
+        Act as Intelligent assistant
         {context}
-        You will act as an OCR assistant to answer the query using the chat history context
+        Your task is to answer the query with accurate answer using the chat history context.
+        If the answer is unknown, admitting ignorance is preferred over fabricating a response. Dont need to add irrelevant text explanation in response.
 
         Chat History: {chat_history}
 
@@ -31,10 +32,7 @@ class VisionMemory:
 
     def save_chat_history(self, query, answer):
         self.chat_history.append([query, answer])
-        # for pair in self.chat_history:
-        #     self.memory.save_context({"input": pair[0]}, {"answer": pair[1]})
         self.memory.save_context({"input": query}, {"answer": answer})
-        # print(self.memory.load_memory_variables({}))
 
     def generate_prompt(self, query, additional_context):
         memory_history = self.memory.load_memory_variables({})

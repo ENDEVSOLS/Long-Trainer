@@ -9,7 +9,7 @@ class DocRetriever:
     to efficiently retrieve documents based on provided queries.
     """
 
-    def __init__(self, documents, embedding_model, existing_faiss_index=None):
+    def __init__(self, documents, embedding_model, existing_faiss_index=None, num_k=3):
         """
         Initializes the AdvancedDocumentRetriever with a set of documents and an embedding model.
 
@@ -33,7 +33,7 @@ class DocRetriever:
             self.bm25_retriever = BM25Retriever.from_documents(documents)
 
             if self.faiss_index:
-                self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": 2})
+                self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": num_k})
             else:
                 self.faiss_retriever = None
 

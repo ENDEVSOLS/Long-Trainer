@@ -1,2 +1,20 @@
-.idea
-venv
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+
+# PyCharm project files (if you are using PyCharm)
+.idea/
+
+# There can be more depending on your specific configuration and needs
