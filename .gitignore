@@ -17,4 +17,6 @@ venv/
 # PyCharm project files (if you are using PyCharm)
 .idea/
 
+test/
+
 # There can be more depending on your specific configuration and needs

@@ -14,3 +14,4 @@ uvicorn==0.23.2
 pydantic==1.10.7
 pymongo>=3.11
 python-docx
+redis==5.0.1
