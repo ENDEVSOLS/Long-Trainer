@@ -6,6 +6,7 @@ from longtrainer.vision_bot import VisionMemory, VisionBot
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
+from longtrainer.utils import serialize_document, deserialize_document
 from pymongo import MongoClient
 import uuid
 import redis
@@ -48,10 +49,17 @@ class LongTrainer:
         self.vision_chats = self.db['vision_chats']
 
     # Redis-based methods for state management
+    def _set_bot_data(self, bot_id, bot_data):
+        bot_data_copy = bot_data.copy()
+        bot_data_copy['documents'] = [serialize_document(doc) for doc in bot_data['documents']]
+        self.redis_client.set(bot_id, json.dumps(bot_data_copy))
+
     def _get_bot_data(self, bot_id):
         bot_data_json = self.redis_client.get(bot_id)
         if bot_data_json:
-            return json.loads(bot_data_json)
+            bot_data = json.loads(bot_data_json)
+            bot_data['documents'] = [deserialize_document(doc) for doc in bot_data['documents']]
+            return bot_data
         return None
 
     def _set_bot_data(self, bot_id, bot_data):
