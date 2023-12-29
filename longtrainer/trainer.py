@@ -138,6 +138,20 @@ class LongTrainer:
         except Exception as e:
             print(f"Error adding document from query: {e}")
 
+    def pass_documents(self, documents, bot_id):
+        """
+       Add documents from any custom Loader.
+
+        Args:
+            documents (list): list of loaded documents.
+        """
+        try:
+            if bot_id in self.bot_data:
+                self.bot_data[bot_id]['documents'].extend(documents)
+
+        except Exception as e:
+            print(f"Error adding documents: {e}")
+
     def create_bot(self, bot_id):
         """
         Creates and returns a conversational AI assistant based on the loaded documents.
@@ -161,7 +175,7 @@ class LongTrainer:
 
     def new_chat(self, bot_id):
         try:
-            chat_id = 'chat' + str(uuid.uuid4())
+            chat_id = 'chat-' + str(uuid.uuid4())
             bot = ChainBot(retriever=self.bot_data[bot_id]['ensemble_retriever'], llm=self.llm, prompt=self.prompt,
                            token_limit=self.max_token_limit)
             self.bot_data[bot_id]['conversational_chain'] = bot.get_chain()
@@ -173,7 +187,7 @@ class LongTrainer:
 
     def new_vision_chat(self, bot_id):
         try:
-            vision_chat_id = 'vision' + str(uuid.uuid4())
+            vision_chat_id = 'vision-' + str(uuid.uuid4())
             self.bot_data[bot_id]['assistant'] = VisionMemory(self.max_token_limit,
                                                               self.bot_data[bot_id]['ensemble_retriever'])
             self.bot_data[bot_id]['assistants'][vision_chat_id] = self.bot_data[bot_id]['assistant']
