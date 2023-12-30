@@ -8,7 +8,7 @@
 - ✅ **Unique Bots/Chat Management:** Sophisticated management of multiple chatbots.
 - ✅ **Enhanced Customization:** Tailor the behavior to fit specific needs.
 - ✅ **Memory Management:** Efficient handling of chat histories and contexts.
-- ✅ **GPT Vision Support:** Integration with GPT-powered visual models.
+- ✅ **GPT Vision Support:** Integration Context Aware GPT-powered visual models.
 - ✅ **Different Data Formats:** Supports various data input formats.
 - ✅ **VectorStore Management:** Advanced management of vector storage for efficient retrieval.
 
@@ -28,7 +28,7 @@ import os
 os.environ["OPENAI_API_KEY"] = "sk-"
         
 # Initialize LongTrainer
-trainer = LongTrainer()
+trainer = LongTrainer(redis_endpoint='redis://localhost:6379', mongo_endpoint='mongodb://localhost:27017/')
 bot_id = trainer.initialize_bot_id()
 print('Bot ID: ', bot_id)
         
