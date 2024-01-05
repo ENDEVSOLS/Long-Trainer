@@ -1,4 +1,3 @@
-import json
 from longtrainer.loaders import DocumentLoader, TextSplitter
 from longtrainer.retrieval import DocRetriever
 from longtrainer.bot import ChainBot
@@ -6,15 +5,13 @@ from longtrainer.vision_bot import VisionMemory, VisionBot
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
-from longtrainer.utils import serialize_document, deserialize_document
 from pymongo import MongoClient
 import uuid
-import redis
 
 
 class LongTrainer:
 
-    def __init__(self, redis_endpoint='redis://localhost:6379', mongo_endpoint='mongodb://localhost:27017/', llm=None,
+    def __init__(self, mongo_endpoint='mongodb://localhost:27017/', llm=None,
                  embedding_model=None,
                  prompt_template=None, max_token_limit=32000):
         """
@@ -28,6 +25,7 @@ class LongTrainer:
             prompt_template: Template for generating prompts, defaults to a predefined template.
             max_token_limit (int): Maximum token limit for the conversational buffer.
         """
+
         self.llm = llm if llm is not None else ChatOpenAI(model_name='gpt-4-1106-preview')
         self.embedding_model = embedding_model if embedding_model is not None else OpenAIEmbeddings()
         self.prompt_template = prompt_template if prompt_template is not None else self._default_prompt_template()
@@ -38,9 +36,6 @@ class LongTrainer:
         self.text_splitter = TextSplitter(chunk_size=1024, chunk_overlap=100)
         self.bot_data = {}
 
-        # Redis setup
-        self.redis_client = redis.StrictRedis.from_url(redis_endpoint)
-
         # MongoDB setup
         self.client = MongoClient(mongo_endpoint)
         self.db = self.client['longtrainer_db']
@@ -48,26 +43,21 @@ class LongTrainer:
         self.chats = self.db['chats']
         self.vision_chats = self.db['vision_chats']
 
-    # Redis-based methods for state management
-    def _set_bot_data(self, bot_id, bot_data):
-        bot_data_copy = bot_data.copy()
-        bot_data_copy['documents'] = [serialize_document(doc) for doc in bot_data['documents']]
-        self.redis_client.set(bot_id, json.dumps(bot_data_copy))
-
-    def _get_bot_data(self, bot_id):
-        bot_data_json = self.redis_client.get(bot_id)
-        if bot_data_json:
-            bot_data = json.loads(bot_data_json)
-            bot_data['documents'] = [deserialize_document(doc) for doc in bot_data['documents']]
-            return bot_data
-        return None
-
-    def _set_bot_data(self, bot_id, bot_data):
-        self.redis_client.set(bot_id, json.dumps(bot_data))
-
     def initialize_bot_id(self):
+        """
+        Initializes a new bot with a unique identifier and initial data structure.
+
+        This method generates a unique bot_id, sets up the initial structure for the bot data, and stores
+        this data in Redis. Additionally, it inserts a record into the bots table in the database.
+
+        Returns:
+            str: The unique identifier (bot_id) for the newly initialized bot.
+
+        The bot data initialized with this method includes empty structures for documents, chains, assistants,
+        and other fields necessary for the bot's operation.
+        """
         bot_id = 'bot-' + str(uuid.uuid4())
-        bot_data = {
+        self.bot_data[bot_id] = {
             'documents': [],
             'chains': {},
             'assistants': {},
@@ -78,11 +68,8 @@ class LongTrainer:
             'assistant': None
         }
 
-        # Set initial bot data in Redis
-        self._set_bot_data(bot_id, bot_data)
-
         # Insert data into the bots table
-        self.bots.insert_one({"bot_id": bot_id, "faiss_path": bot_data['faiss_path']})
+        self.bots.insert_one({"bot_id": bot_id, "faiss_path": self.bot_data[bot_id]['faiss_path']})
         return bot_id
 
     def _default_prompt_template(self):
@@ -109,25 +96,22 @@ class LongTrainer:
             path (str): Path to the document file.
         """
         try:
-            bot_data = self._get_bot_data(bot_id)
-            if bot_data is None:
-                raise Exception(f"Bot ID {bot_id} not found")
-            file_extension = path.split('.')[-1].lower()
-            if file_extension == 'csv':
-                documents = self.document_loader.load_csv(path)
-            elif file_extension == 'docx':
-                documents = self.document_loader.load_doc(path)
-            elif file_extension == 'pdf':
-                documents = self.document_loader.load_pdf(path)
-            elif file_extension in ['md', 'markdown', 'txt']:
-                documents = self.document_loader.load_markdown(path)
-            elif file_extension in ['html', 'htm']:
-                documents = self.document_loader.load_text_from_html(path)
-            else:
-                raise ValueError(f"Unsupported file type: {file_extension}")
+            if bot_id in self.bot_data:
+                file_extension = path.split('.')[-1].lower()
+                if file_extension == 'csv':
+                    documents = self.document_loader.load_csv(path)
+                elif file_extension == 'docx':
+                    documents = self.document_loader.load_doc(path)
+                elif file_extension == 'pdf':
+                    documents = self.document_loader.load_pdf(path)
+                elif file_extension in ['md', 'markdown', 'txt']:
+                    documents = self.document_loader.load_markdown(path)
+                elif file_extension in ['html', 'htm']:
+                    documents = self.document_loader.load_text_from_html(path)
+                else:
+                    raise ValueError(f"Unsupported file type: {file_extension}")
+                self.bot_data[bot_id]['documents'].extend(documents)
 
-            bot_data['documents'].extend(documents)
-            self._set_bot_data(bot_id, bot_data)
         except Exception as e:
             print(f"Error adding document from path: {e}")
 
@@ -139,18 +123,16 @@ class LongTrainer:
             links (list): List of web links to load documents from.
         """
         try:
-            bot_data = self._get_bot_data(bot_id)
-            if bot_data is None:
-                raise Exception(f"Bot ID {bot_id} not found")
-            for link in links:
-                if 'youtube.com' in link.lower() or 'youtu.be' in link.lower():
-                    documents = self.document_loader.load_YouTubeVideo(link)
-                else:
-                    documents = self.document_loader.load_urls([link])
+            if bot_id in self.bot_data:
+                for link in links:
+                    if 'youtube.com' in link.lower() or 'youtu.be' in link.lower():
+                        documents = self.document_loader.load_YouTubeVideo(link)
+                    else:
+                        documents = self.document_loader.load_urls([link])
 
-                bot_data['documents'].extend(documents)
-                self._set_bot_data(bot_id, bot_data)
+                    self.bot_data[bot_id]['documents'].extend(documents)
 
+                # self.documents.extend(documents)
         except Exception as e:
             print(f"Error adding document from link: {e}")
 
@@ -162,13 +144,9 @@ class LongTrainer:
             search_query (str): Search query for Wikipedia.
         """
         try:
-            bot_data = self._get_bot_data(bot_id)
-            if bot_data is None:
-                raise Exception(f"Bot ID {bot_id} not found")
-            documents = self.document_loader.wikipedia_query(search_query)
-
-            bot_data['documents'].extend(documents)
-            self._set_bot_data(bot_id, bot_data)
+            if bot_id in self.bot_data:
+                query_documents = self.document_loader.wikipedia_query(search_query)
+                self.bot_data[bot_id]['documents'].extend(query_documents)
 
         except Exception as e:
             print(f"Error adding document from query: {e}")
@@ -181,12 +159,9 @@ class LongTrainer:
             documents (list): list of loaded documents.
         """
         try:
-            bot_data = self._get_bot_data(bot_id)
-            if bot_data is None:
-                raise Exception(f"Bot ID {bot_id} not found")
+            if bot_id in self.bot_data:
+                self.bot_data[bot_id]['documents'].extend(documents)
 
-            bot_data['documents'].extend(documents)
-            self._set_bot_data(bot_id, bot_data)
         except Exception as e:
             print(f"Error adding documents: {e}")
 
@@ -194,52 +169,62 @@ class LongTrainer:
         """
         Creates and returns a conversational AI assistant based on the loaded documents.
 
+        Args:
+            bot_id (str): The unique identifier for the bot.
+
         Returns:
-            A function that takes a query and returns the assistant's response.
+            A function that will initialize Chatbot, or return None if an error occurs.
         """
         try:
-            bot_data = self._get_bot_data(bot_id)
-            if bot_data is None:
-                raise Exception(f"Bot ID {bot_id} not found")
+            if bot_id in self.bot_data:
+                all_splits = self.text_splitter.split_documents(self.bot_data[bot_id]['documents'])
+                self.bot_data[bot_id]['retriever'] = DocRetriever(all_splits, self.embedding_model,
+                                                                  existing_faiss_index=self.bot_data[bot_id][
+                                                                      'retriever'].faiss_index if self.bot_data[bot_id][
+                                                                      'retriever'] else None)
+                self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
+                self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
-            all_splits = self.text_splitter.split_documents(bot_data['documents'])
-            bot_data['retriever'] = DocRetriever(all_splits, self.embedding_model,
-                                                 existing_faiss_index=bot_data['retriever'].faiss_index if
-                                                 self.bot_data[bot_id]['retriever'] else None)
-            bot_data['retriever'].save_index(file_path=bot_data['faiss_path'])
-            bot_data['ensemble_retriever'] = bot_data['retriever'].retrieve_documents()
-            self._set_bot_data(bot_id, bot_data)
         except Exception as e:
             print(f"Error creating bot: {e}")
             return None
 
     def new_chat(self, bot_id):
-        try:
-            bot_data = self._get_bot_data(bot_id)
-            if bot_data is None:
-                raise Exception(f"Bot ID {bot_id} not found")
+        """
+        Creates and returns a new Chat based on the loaded documents.
 
+        Args:
+            bot_id (str): The unique identifier for the bot.
+
+        Returns:
+            A string representing the unique identifier for the new chat session, or None if an error occurs.
+        """
+        try:
             chat_id = 'chat-' + str(uuid.uuid4())
-            bot = ChainBot(retriever=bot_data['ensemble_retriever'], llm=self.llm, prompt=self.prompt,
+            bot = ChainBot(retriever=self.bot_data[bot_id]['ensemble_retriever'], llm=self.llm, prompt=self.prompt,
                            token_limit=self.max_token_limit)
-            bot_data['conversational_chain'] = bot.get_chain()
-            bot_data['chains'][chat_id] = bot_data['conversational_chain']
-            self._set_bot_data(bot_id, bot_data)
+            self.bot_data[bot_id]['conversational_chain'] = bot.get_chain()
+            self.bot_data[bot_id]['chains'][chat_id] = self.bot_data[bot_id]['conversational_chain']
             return chat_id
         except Exception as e:
             print(f"Error creating bot: {e}")
             return None
 
     def new_vision_chat(self, bot_id):
-        try:
-            bot_data = self._get_bot_data(bot_id)
-            if bot_data is None:
-                raise Exception(f"Bot ID {bot_id} not found")
+        """
+        Creates a new vision chat session for the given bot.
 
+        Args:
+            bot_id (str): The unique identifier for the bot.
+
+        Returns:
+            A string representing the unique identifier for the new vision chat session, or None if an error occurs.
+        """
+        try:
             vision_chat_id = 'vision-' + str(uuid.uuid4())
-            bot_data['assistant'] = VisionMemory(self.max_token_limit, bot_data['ensemble_retriever'])
-            bot_data['assistants'][vision_chat_id] = bot_data['assistant']
-            self._set_bot_data(bot_id, bot_data)
+            self.bot_data[bot_id]['assistant'] = VisionMemory(self.max_token_limit,
+                                                              self.bot_data[bot_id]['ensemble_retriever'])
+            self.bot_data[bot_id]['assistants'][vision_chat_id] = self.bot_data[bot_id]['assistant']
 
             return vision_chat_id
         except Exception as e:
@@ -248,57 +233,71 @@ class LongTrainer:
 
     def update_chatbot(self, paths, links, search_query, bot_id):
         """
-        Updates the chatbot with new documents.
+        Updates the chatbot with new documents from given paths, links, and a search query.
+
+        Args:
+            paths (list): List of file paths to load documents from.
+            links (list): List of web links to load documents from.
+            search_query (str): Wikipedia search query to load documents from.
+            bot_id (str): The unique identifier for the bot.
+
+        Raises:
+            Exception: If the bot ID is not found.
         """
-        bot_data = self._get_bot_data(bot_id)
-        if bot_data is None:
-            raise Exception(f"Bot ID {bot_id} not found")
+        try:
+            initial_docs_len = len(self.bot_data[bot_id]['documents'])
+            for path in paths:
+                self.add_document_from_path(path, bot_id)
 
-        initial_docs_len = len(bot_data['documents'])
-        for path in paths:
-            self.add_document_from_path(path, bot_id)
+            self.add_document_from_link(links, bot_id)
+            if search_query:
+                self.add_document_from_query(search_query, bot_id)
 
-        self.add_document_from_link(links, bot_id)
-        if search_query:
-            self.add_document_from_query(search_query, bot_id)
+            # Calculate new documents added
+            new_docs = self.bot_data[bot_id]['documents'][initial_docs_len:]
 
-        # Calculate new documents added
-        new_docs = bot_data['documents'][initial_docs_len:]
+            if self.bot_data[bot_id]['retriever'] and self.bot_data[bot_id]['retriever'].faiss_index:
+                print(len(new_docs))
+                # Use the new method to update the existing index
+                self.bot_data[bot_id]['retriever'].update_index(new_docs)
+                self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
 
-        if bot_data['retriever'] and bot_data['retriever'].faiss_index:
-            print(len(new_docs))
-            # Use the new method to update the existing index
-            bot_data['retriever'].update_index(new_docs)
-            bot_data['retriever'].save_index(file_path=bot_data['faiss_path'])
+            else:
+                # If no retriever or FAISS index, create a new one
+                self.retriever = DocRetriever(self.documents, self.embedding_model,
+                                              existing_faiss_index=self.bot_data[bot_id]['retriever'].faiss_index if
+                                              self.bot_data[bot_id]['retriever'] else None)
 
-        else:
-            # If no retriever or FAISS index, create a new one
-            self.retriever = DocRetriever(self.documents, self.embedding_model,
-                                          existing_faiss_index=bot_data['retriever'].faiss_index if
-                                          bot_data['retriever'] else None)
+            self.create_bot(bot_id)
+        except Exception as e:
+            print(f"Error updating chatbot: {e}")
 
-        self.create_bot(bot_id)
-        self._set_bot_data(bot_id, bot_data)
-
-    def _get_response(self, query, chat_id, bot_id):
+    def _get_response(self, query, bot_id, chat_id):
         """
         Retrieves a response from the conversational AI assistant for a given query.
 
         Args:
             query (str): Query string for the assistant.
+            chat_id (str): The unique identifier for the chat session.
+            bot_id (str): The unique identifier for the bot.
 
         Returns:
             The assistant's response to the query.
-        """
-        bot_data = self._get_bot_data(bot_id)
-        if bot_data is None or chat_id not in bot_data['chains']:
-            raise Exception(f"Bot ID {bot_id} or Chat ID {chat_id} not found")
 
-        chain = bot_data['chains'][chat_id]
+        Raises:
+            Exception: If the bot ID or Chat ID is not found.
+        """
+        if bot_id not in self.bot_data:
+            raise Exception(f"Bot ID {bot_id} not found.")
+
+        if chat_id not in self.bot_data[bot_id]['chains']:
+            raise Exception(
+                f"Chat ID {chat_id} not found in bot {bot_id}. Available chats: {list(self.bot_data[bot_id]['chains'].keys())}")
+
+        chain = self.bot_data[bot_id]['chains'][chat_id]
         result = chain(query)
         result = result.get('answer')
 
-        # Insert data into the chats collection
         self.chats.insert_one({
             "bot_id": bot_id,
             "chat_id": chat_id,
@@ -308,47 +307,68 @@ class LongTrainer:
 
         return result
 
-    def _get_vision_response(self, query, image_paths, vision_chat_id, bot_id):
 
-        bot_data = self._get_bot_data(bot_id)
-        if bot_data is None or vision_chat_id not in bot_data['assistants']:
-            raise Exception(f"Bot ID {bot_id} or Vision Chat ID {vision_chat_id} not found")
+    def _get_vision_response(self, query, image_paths,  bot_id, vision_chat_id):
+        """
+        Retrieves a response from the vision AI assistant for a given query and images.
 
-        assistant = bot_data['assistants'][vision_chat_id]
-        prompt = assistant.get_answer(query)
-        vision = VisionBot(prompt)
-        vision.create_vision_bot(image_paths)
-        vision_response = vision.get_response(query)
-        assistant.save_chat_history(query, vision_response)
+        Args:
+            query (str): Query string for the assistant.
+            image_paths (list): List of paths to images.
+            vision_chat_id (str): The unique identifier for the vision chat session.
+            bot_id (str): The unique identifier for the bot.
 
-        # Insert data into the vision_chats collection
-        self.vision_chats.insert_one({
-            "bot_id": bot_id,
-            "vision_chat_id": vision_chat_id,
-            "image_path": ','.join(image_paths),
-            "question": query,
-            "response": vision_response
-        })
+        Returns:
+            The vision assistant's response to the query.
 
-        return vision_response
+        Raises:
+            Exception: If the bot ID or Vision Chat ID is not found.
+        """
+        try:
+            if bot_id not in self.bot_data or vision_chat_id not in self.bot_data[bot_id]['assistants']:
+                raise Exception(f"Bot ID {bot_id} or Vision Chat ID {vision_chat_id} not found")
+
+            assistant = self.bot_data[bot_id]['assistants'][vision_chat_id]
+            prompt = assistant.get_answer(query)
+            vision = VisionBot(prompt)
+            vision.create_vision_bot(image_paths)
+            vision_response = vision.get_response(query)
+            assistant.save_chat_history(query, vision_response)
+
+            # Insert data into the vision_chats collection
+            self.vision_chats.insert_one({
+                "bot_id": bot_id,
+                "vision_chat_id": vision_chat_id,
+                "image_path": ','.join(image_paths),
+                "question": query,
+                "response": vision_response
+            })
+
+            return vision_response
+        except Exception as e:
+            print(f"Error getting vision response: {e}")
+            return None
 
     def delete_chatbot(self, bot_id):
         """
-        Deletes a chatbot and its associated data.
+        Deletes a chatbot and its associated data from the system.
+
+        Args:
+            bot_id (str): The unique identifier for the bot to be deleted.
+
+        Raises:
+            Exception: If the bot ID is not found.
         """
-        bot_data = self._get_bot_data(bot_id)
-        if bot_data is not None:
+        if bot_id in self.bot_data:
             # Delete related documents from the collections
             self.chats.delete_many({"bot_id": bot_id})
             self.vision_chats.delete_many({"bot_id": bot_id})
             self.bots.delete_one({"bot_id": bot_id})
 
-            # Delete Redis Data
-            self.redis_client.delete(bot_id)
-
             # Additional in-memory cleanup
-            if bot_data['retriever']:
-                bot_data['retriever'].delete_index(file_path=bot_data['faiss_path'])
-            del bot_data
+            bot = self.bot_data[bot_id]
+            if bot['retriever']:
+                bot['retriever'].delete_index(file_path=bot['faiss_path'])
+            del self.bot_data[bot_id]
         else:
             raise Exception(f"Bot ID {bot_id} not found")
