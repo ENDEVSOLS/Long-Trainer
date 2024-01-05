@@ -22,6 +22,7 @@
 
  VertexAI LLMs
 ```python
+from longtrainer.trainer import LongTrainer
 from langchain_community.llms import VertexAI
 
 llm = VertexAI()
@@ -30,8 +31,9 @@ trainer = LongTrainer(mongo_endpoint='mongodb://localhost:27017/', llm=llm)
 ```
  TogetherAI LLMs
 ```python
-
+from longtrainer.trainer import LongTrainer
 from langchain_community.llms import Together
+
 llm = Together(
     model="togethercomputer/RedPajama-INCITE-7B-Base",
     temperature=0.7,
