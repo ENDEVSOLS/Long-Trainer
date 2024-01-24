@@ -3,6 +3,7 @@ import os
 from langchain.vectorstores import FAISS
 from langchain.retrievers import BM25Retriever, EnsembleRetriever
 import shutil
+
 class DocRetriever:
     """
     Advanced Document Retriever integrates retrieval techniques
@@ -21,7 +22,7 @@ class DocRetriever:
             self.embedding_model = embedding_model
             self.document_collection = documents
             self.faiss_index = existing_faiss_index
-
+            self.k = num_k
             if not documents:
                 raise ValueError("Document collection is empty.")
 
@@ -31,9 +32,9 @@ class DocRetriever:
 
             # Initialize BM25 and FAISS retrievers
             self.bm25_retriever = BM25Retriever.from_documents(documents)
-
+            self.bm25_retriever.k = self.k
             if self.faiss_index:
-                self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": num_k})
+                self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": self.k})
             else:
                 self.faiss_retriever = None
 
@@ -52,16 +53,17 @@ class DocRetriever:
         """
         if self.faiss_index is None:  # Only index if there's no existing FAISS index
             try:
-                if len(self.document_collection) < 2000:
+                if len(self.document_collection) < 1000:
                     self.faiss_index = FAISS.from_documents(self.document_collection, self.embedding_model)
                 else:
-                    self.faiss_index = FAISS.from_documents(self.document_collection[:2000], self.embedding_model)
-                    for i in range(2000, len(self.document_collection), 2000):
-                        end_index = min(i + 2000, len(self.document_collection))
+                    self.faiss_index = FAISS.from_documents(self.document_collection[:1000], self.embedding_model)
+                    for i in range(1000, len(self.document_collection), 1000):
+                        end_index = min(i + 1000, len(self.document_collection))
                         additional_index = FAISS.from_documents(self.document_collection[i:end_index], self.embedding_model)
                         self.faiss_index.merge_from(additional_index)
             except Exception as e:
                 print(f"Error indexing documents: {e}")
+
 
     def save_index(self, file_path):
         """
@@ -85,19 +87,34 @@ class DocRetriever:
         # Add this method to handle updates to the existing index
         if not self.faiss_index:
             raise ValueError("FAISS index not initialized.")
-        if len(new_documents) < 2000:
+        if len(new_documents) < 1000:
             new_index = FAISS.from_documents(new_documents, self.embedding_model)
         else:
             # self.faiss_index = FAISS.from_documents(self.document_collection[:2000], self.embedding_model)
-            new_index = FAISS.from_documents(new_documents[:2000], self.embedding_model)
-            for i in range(2000, len(new_documents), 2000):
-                end_index = min(i + 2000, len(new_documents))
-                additional_index = FAISS.from_documents(self.new_documents[i:end_index], self.embedding_model)
+            new_index = FAISS.from_documents(new_documents[:1000], self.embedding_model)
+            for i in range(1000, len(new_documents), 1000):
+                end_index = min(i + 1000, len(new_documents))
+                additional_index = FAISS.from_documents(new_documents[i:end_index], self.embedding_model)
                 new_index.merge_from(additional_index)
 
-        new_index = FAISS.from_documents(new_documents, self.embedding_model)
+        # new_index = FAISS.from_documents(new_documents, self.embedding_model)
+
+
         self.faiss_index.merge_from(new_index)
 
+        # Update the document collection
+        self.document_collection.extend(new_documents)
+        # Initialize BM25 and FAISS retrievers
+        self.bm25_retriever = BM25Retriever.from_documents(self.document_collection)
+        self.bm25_retriever.k = self.k
+
+        self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": self.k})
+
+        # Create an Ensemble Retriever combining BM25 and FAISS
+        self.ensemble_retriever = EnsembleRetriever(
+            retrievers=[self.bm25_retriever, self.faiss_retriever],
+            weights=[0.5, 0.5]
+        )
 
     def delete_index(self, file_path):
         """

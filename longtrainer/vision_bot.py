@@ -4,8 +4,9 @@ from langchain.memory import ConversationTokenBufferMemory
 from langchain.chat_models import ChatOpenAI
 from langchain.schema.messages import HumanMessage, AIMessage
 import base64
+
 class VisionMemory:
-    def __init__(self, token_limit, ensemble_retriever=None):
+    def __init__(self, token_limit, ensemble_retriever=None, prompt_template = None):
         model_name='gpt-4-1106-preview'
         self.llm = ChatOpenAI(model_name=model_name)
         self.memory = ConversationTokenBufferMemory(
@@ -16,7 +17,7 @@ class VisionMemory:
             output_key='answer'
         )
         self.chat_history = []
-        self.prompt_template = '''
+        self.prompt_template = prompt_template if prompt_template else '''
         Act as Intelligent assistant
         {context}
         Your task is to answer the query with accurate answer using the chat history context.

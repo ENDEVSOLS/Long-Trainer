@@ -12,7 +12,7 @@
 - ✅ **Different Data Formats:** Supports various data input formats.
 - ✅ **VectorStore Management:** Advanced management of vector storage for efficient retrieval.
 
-## Works for All Langchain Supported LLM  
+## Works for All Langchain Supported LLM and Embeddings
 
 - ✅ OpenAI (default)
 - ✅ VertexAI
@@ -78,7 +78,7 @@ chat_id = trainer.new_chat(bot_id)
         
 # Send a Query and Get a Response
 query = 'Your query here'
-response = trainer.get_response(query, bot_id, chat_id)
+response = trainer._get_response(query, bot_id, chat_id)
 print('Response: ', response)
   ```
 

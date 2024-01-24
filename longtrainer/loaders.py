@@ -1,4 +1,3 @@
-# from langchain.document_loaders.csv_loader import CSVLoader
 from langchain.document_loaders import (CSVLoader, WikipediaLoader, UnstructuredURLLoader,
                                         YoutubeLoader, PyPDFLoader, BSHTMLLoader,
                                         Docx2txtLoader, UnstructuredMarkdownLoader)

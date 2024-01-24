@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='longtrainer',
-    version='0.1.6',
+    version='0.1.7',
     packages=find_packages(),
     description='Produciton Ready LangChain',
     long_description=open('README.md').read(),

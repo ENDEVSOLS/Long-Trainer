@@ -13,6 +13,7 @@ class LongTrainer:
 
     def __init__(self, mongo_endpoint='mongodb://localhost:27017/', llm=None,
                  embedding_model=None,
+                 num_k=3,
                  prompt_template=None, max_token_limit=32000):
         """
         Initialize the LongTrainer with optional language learning model, embedding model,
@@ -31,9 +32,10 @@ class LongTrainer:
         self.prompt_template = prompt_template if prompt_template is not None else self._default_prompt_template()
         self.prompt = PromptTemplate(template=self.prompt_template,
                                      input_variables=["context", "chat_history", "question"])
+        self.k = num_k
         self.max_token_limit = max_token_limit
         self.document_loader = DocumentLoader()
-        self.text_splitter = TextSplitter(chunk_size=1024, chunk_overlap=100)
+        self.text_splitter = TextSplitter(chunk_size=2048, chunk_overlap=200)
         self.bot_data = {}
 
         # MongoDB setup
@@ -181,7 +183,7 @@ class LongTrainer:
                 self.bot_data[bot_id]['retriever'] = DocRetriever(all_splits, self.embedding_model,
                                                                   existing_faiss_index=self.bot_data[bot_id][
                                                                       'retriever'].faiss_index if self.bot_data[bot_id][
-                                                                      'retriever'] else None)
+                                                                      'retriever'] else None, num_k=self.k)
                 self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
                 self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
@@ -223,7 +225,7 @@ class LongTrainer:
         try:
             vision_chat_id = 'vision-' + str(uuid.uuid4())
             self.bot_data[bot_id]['assistant'] = VisionMemory(self.max_token_limit,
-                                                              self.bot_data[bot_id]['ensemble_retriever'])
+                                                              self.bot_data[bot_id]['ensemble_retriever'], prompt_template = self.prompt_template)
             self.bot_data[bot_id]['assistants'][vision_chat_id] = self.bot_data[bot_id]['assistant']
 
             return vision_chat_id
@@ -231,7 +233,8 @@ class LongTrainer:
             print(f"Error creating bot: {e}")
             return None
 
-    def update_chatbot(self, paths, links, search_query, bot_id):
+    def update_chatbot(self, paths, bot_id, links=None, search_query=None):
+
         """
         Updates the chatbot with new documents from given paths, links, and a search query.
 
@@ -248,8 +251,8 @@ class LongTrainer:
             initial_docs_len = len(self.bot_data[bot_id]['documents'])
             for path in paths:
                 self.add_document_from_path(path, bot_id)
-
-            self.add_document_from_link(links, bot_id)
+            if links:
+                self.add_document_from_link(links, bot_id)
             if search_query:
                 self.add_document_from_query(search_query, bot_id)
 
@@ -258,15 +261,22 @@ class LongTrainer:
 
             if self.bot_data[bot_id]['retriever'] and self.bot_data[bot_id]['retriever'].faiss_index:
                 print(len(new_docs))
+                all_splits = self.text_splitter.split_documents(new_docs)
+
                 # Use the new method to update the existing index
-                self.bot_data[bot_id]['retriever'].update_index(new_docs)
+                self.bot_data[bot_id]['retriever'].update_index(all_splits)
                 self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
+                self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
             else:
+                all_splits = self.text_splitter.split_documents(self.bot_data[bot_id]['documents'])
+
                 # If no retriever or FAISS index, create a new one
-                self.retriever = DocRetriever(self.documents, self.embedding_model,
+                self.bot_data[bot_id]['retriever']  = DocRetriever(all_splits, self.embedding_model,
                                               existing_faiss_index=self.bot_data[bot_id]['retriever'].faiss_index if
-                                              self.bot_data[bot_id]['retriever'] else None)
+                                              self.bot_data[bot_id]['retriever'] else None, num_k=self.k)
+                self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
+                self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
             self.create_bot(bot_id)
         except Exception as e:
@@ -296,6 +306,7 @@ class LongTrainer:
 
         chain = self.bot_data[bot_id]['chains'][chat_id]
         result = chain(query)
+
         result = result.get('answer')
 
         self.chats.insert_one({
