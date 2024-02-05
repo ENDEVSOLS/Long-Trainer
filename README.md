@@ -88,10 +88,17 @@ Here's a guide on how to use Vision Chat:
 chat_id = trainer.new_vision_chat(bot_id)
 
 query = 'Your query here'
-image_paths=['/home/muzammil/PycharmProjects/nvidia.jpg']
+image_paths=['nvidia.jpg']
 response = trainer._get_vision_response(query, image_paths, str(bot_id),str(vision_id))
 print('Response: ', response)
 ```
 
+List Chats and Display Chat History:
+
+```python
+trainer.list_chats(bot_id)
+
+trainer.get_chat_by_id(chat_id=chat_id)
+```
 
 This project is still under active development. Community feedback and contributions are highly appreciated. 

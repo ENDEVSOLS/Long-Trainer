@@ -2,22 +2,32 @@ from longtrainer.loaders import DocumentLoader, TextSplitter
 from longtrainer.retrieval import DocRetriever
 from longtrainer.bot import ChainBot
 from longtrainer.vision_bot import VisionMemory, VisionBot
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.chat_models import ChatOpenAI
+from langchain_openai.chat_models import ChatOpenAI
+from langchain_openai.embeddings import OpenAIEmbeddings
 from langchain.prompts import PromptTemplate
+from langchain.tools import DuckDuckGoSearchResults
 from pymongo import MongoClient
+from cryptography.fernet import Fernet
 import uuid
+import re
 
 
 class LongTrainer:
 
-    def __init__(self, mongo_endpoint='mongodb://localhost:27017/', llm=None,
-                 embedding_model=None,
-                 num_k=3,
-                 prompt_template=None, max_token_limit=32000):
+    def __init__(
+            self,
+            mongo_endpoint='mongodb://localhost:27017/',
+            llm=None,
+            embedding_model=None,
+            prompt_template=None,
+            max_token_limit=32000,
+            num_k=3,
+            encrypt_chats=False,
+            encryption_key=None
+    ):
         """
         Initialize the LongTrainer with optional language learning model, embedding model,
-        prompt template, maximum token limit, and MongoDB endpoint.
+        prompt template, maximum token limit, and MongoDB endpoint, num_k, encryption_configs
 
         Args:
             mongo_endpoint (str): MongoDB connection string.
@@ -25,6 +35,10 @@ class LongTrainer:
             embedding_model: Embedding model for document vectorization, defaults to OpenAIEmbeddings.
             prompt_template: Template for generating prompts, defaults to a predefined template.
             max_token_limit (int): Maximum token limit for the conversational buffer.
+            num_k (int): Define no of K for Retriever.
+            encrypt_chats (Bool): Whether to use encryption while storing Chats in Mongodb or not.
+            encryption_key : For initializing Fernet.
+
         """
 
         self.llm = llm if llm is not None else ChatOpenAI(model_name='gpt-4-1106-preview')
@@ -32,6 +46,7 @@ class LongTrainer:
         self.prompt_template = prompt_template if prompt_template is not None else self._default_prompt_template()
         self.prompt = PromptTemplate(template=self.prompt_template,
                                      input_variables=["context", "chat_history", "question"])
+        self.search = DuckDuckGoSearchResults()
         self.k = num_k
         self.max_token_limit = max_token_limit
         self.document_loader = DocumentLoader()
@@ -44,6 +59,12 @@ class LongTrainer:
         self.bots = self.db['bots']
         self.chats = self.db['chats']
         self.vision_chats = self.db['vision_chats']
+
+        # Encryption Setup
+        self.encrypt_chats = encrypt_chats
+        if encrypt_chats:
+            self.encryption_key = encryption_key if encryption_key else Fernet.generate_key()
+            self.fernet = Fernet(self.encryption_key)
 
     def initialize_bot_id(self):
         """
@@ -74,13 +95,35 @@ class LongTrainer:
         self.bots.insert_one({"bot_id": bot_id, "faiss_path": self.bot_data[bot_id]['faiss_path']})
         return bot_id
 
+    def web_searching(self, query):
+
+        text = self.search.run(query)
+        return text
+
+    def get_websearch_links(self, text):
+
+        segments = re.findall(r'\[([^]]+)\]', text)
+
+        results = []
+        for segment in segments:
+            snippet_search = re.search(r'snippet: (.*?), title:', segment)
+            title_search = re.search(r'title: (.*?), link:', segment)
+            link_search = re.search(r'link: (.*)', segment)
+
+            if snippet_search and title_search and link_search:
+                snippet = snippet_search.group(1)
+                title = title_search.group(1)
+                link = link_search.group(1)
+
+                results.append(link)
+        return results
+
     def _default_prompt_template(self):
         """
         Returns the default prompt template for the assistant.
         """
         return """
-        Act as an Intelligent Assistant:
-
+        You will act as Intelligent assistant and your name is longtrainer and you will asnwer the any kind of query. YOu will act like conversation chatbot to interact with user. You will introduce your self as longtrainer.
         {context}
         Use the following pieces of information to answer the user's question. If the answer is unknown, admitting ignorance is preferred over fabricating a response. Dont need to add irrelevant text explanation in response.
         Answers should be direct, professional, and to the point without any irrelevant details.
@@ -225,7 +268,8 @@ class LongTrainer:
         try:
             vision_chat_id = 'vision-' + str(uuid.uuid4())
             self.bot_data[bot_id]['assistant'] = VisionMemory(self.max_token_limit,
-                                                              self.bot_data[bot_id]['ensemble_retriever'], prompt_template = self.prompt_template)
+                                                              self.bot_data[bot_id]['ensemble_retriever'],
+                                                              prompt_template=self.prompt_template)
             self.bot_data[bot_id]['assistants'][vision_chat_id] = self.bot_data[bot_id]['assistant']
 
             return vision_chat_id
@@ -272,9 +316,11 @@ class LongTrainer:
                 all_splits = self.text_splitter.split_documents(self.bot_data[bot_id]['documents'])
 
                 # If no retriever or FAISS index, create a new one
-                self.bot_data[bot_id]['retriever']  = DocRetriever(all_splits, self.embedding_model,
-                                              existing_faiss_index=self.bot_data[bot_id]['retriever'].faiss_index if
-                                              self.bot_data[bot_id]['retriever'] else None, num_k=self.k)
+                self.bot_data[bot_id]['retriever'] = DocRetriever(all_splits, self.embedding_model,
+                                                                  existing_faiss_index=self.bot_data[bot_id][
+                                                                      'retriever'].faiss_index if
+                                                                  self.bot_data[bot_id]['retriever'] else None,
+                                                                  num_k=self.k)
                 self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
                 self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
@@ -282,20 +328,50 @@ class LongTrainer:
         except Exception as e:
             print(f"Error updating chatbot: {e}")
 
-    def _get_response(self, query, bot_id, chat_id):
-        """
-        Retrieves a response from the conversational AI assistant for a given query.
+    def _encrypt_data(self, data):
+        '''
+        Receives Chats Data and encrypt them .
 
         Args:
-            query (str): Query string for the assistant.
-            chat_id (str): The unique identifier for the chat session.
-            bot_id (str): The unique identifier for the bot.
+            data : Queries and Responses.
 
         Returns:
-            The assistant's response to the query.
+            Encrypted Data.
+        '''
+        return self.fernet.encrypt(data.encode()).decode()
+
+    def _decrypt_data(self, data):
+        '''
+        Receives Encrypted Chats Data and decrypt them .
+
+        Args:
+            data : Encrypted Queries and Responses.
+
+        Returns:
+            Decrypted Data.
+        '''
+        return self.fernet.decrypt(data.encode()).decode()
+
+    def _get_response(self, query, bot_id, chat_id, web_search=False):
+        """
+        Retrieves a response from the conversational AI assistant for a given query, potentially
+        incorporating web search results.
+
+        This method fetches a response from the bot's conversational chain. If web_search is enabled, it
+        performs a web search based on the query and includes the results in the context for generating
+        the response. The method also handles chat data encryption if it's enabled.
+
+        Args:
+            query (str): The query string for the assistant.
+            bot_id (str): The unique identifier for the bot.
+            chat_id (str): The unique identifier for the chat session.
+            web_search (bool, optional): Flag to enable or disable web search integration. Defaults to False.
+
+        Returns:
+            tuple: A tuple containing the assistant's response and the list of web sources used, if any.
 
         Raises:
-            Exception: If the bot ID or Chat ID is not found.
+            Exception: If the bot ID or chat ID is not found in the system.
         """
         if bot_id not in self.bot_data:
             raise Exception(f"Bot ID {bot_id} not found.")
@@ -304,58 +380,107 @@ class LongTrainer:
             raise Exception(
                 f"Chat ID {chat_id} not found in bot {bot_id}. Available chats: {list(self.bot_data[bot_id]['chains'].keys())}")
 
+        web_source = []
+        webdata = None
+        seen_sources = set()
+        unique_sources = []
+        if web_search:
+            webdata = self.web_searching(query)
+            web_source = self.get_websearch_links(webdata)
+
         chain = self.bot_data[bot_id]['chains'][chat_id]
-        result = chain(query)
 
-        result = result.get('answer')
+        updated_query = f"{query}\nKindly consider the following text that's extracted from web search while answering the question. The following wensearch context will help you to provide upfated knowledge and kindly consider it must in answering the question.\n{webdata}" if webdata else query
 
+        result = chain(updated_query)
+
+        answer = result.get('answer')
+
+        for doc in result['source_documents']:
+            # Assuming 'metadata' is an attribute of the 'Document' object and 'source' is a key in that metadata dictionary
+            source = doc.metadata.get('source') if hasattr(doc, 'metadata') and isinstance(doc.metadata, dict) else None
+
+            if source and source not in seen_sources:
+                unique_sources.append(source)
+                seen_sources.add(source)
+
+        if self.encrypt_chats:
+            encrypted_query = self._encrypt_data(query)
+            encrypted_result = self._encrypt_data(answer)
+            if len(web_source) > 0:
+                encrypted_web_source = [self._encrypt_data(source) for source in web_source]
+        else:
+            encrypted_web_source = web_source
+
+            # Insert the chat data along with web sources into MongoDB
         self.chats.insert_one({
             "bot_id": bot_id,
             "chat_id": chat_id,
-            "question": query,
-            "answer": result
+            "question": encrypted_query if self.encrypt_chats else query,
+            "answer": encrypted_result if self.encrypt_chats else answer,
+            "web_sources": encrypted_web_source  # Inserting web sources
         })
 
-        return result
+        return answer, web_source
 
-
-    def _get_vision_response(self, query, image_paths,  bot_id, vision_chat_id):
+    def _get_vision_response(self, query, image_paths, bot_id, vision_chat_id, web_search=False):
         """
-        Retrieves a response from the vision AI assistant for a given query and images.
+        Retrieves a response from the vision AI assistant for a given query and set of images,
+        potentially incorporating web search results.
+
+        This method processes a query along with provided image paths using the vision AI assistant. If
+        web_search is enabled, it performs a web search based on the query and includes this information
+        in the context for the response generation. Chat data encryption is handled if enabled.
 
         Args:
-            query (str): Query string for the assistant.
-            image_paths (list): List of paths to images.
-            vision_chat_id (str): The unique identifier for the vision chat session.
+            query (str): The query string for the assistant.
+            image_paths (list of str): A list of paths to the images for the vision chat.
             bot_id (str): The unique identifier for the bot.
+            vision_chat_id (str): The unique identifier for the vision chat session.
+            web_search (bool, optional): Flag to enable or disable web search integration. Defaults to False.
 
         Returns:
-            The vision assistant's response to the query.
+            tuple: A tuple containing the vision assistant's response and the list of web sources used, if any.
 
         Raises:
-            Exception: If the bot ID or Vision Chat ID is not found.
+            Exception: If the bot ID or vision chat ID is not found in the system.
         """
         try:
+
             if bot_id not in self.bot_data or vision_chat_id not in self.bot_data[bot_id]['assistants']:
                 raise Exception(f"Bot ID {bot_id} or Vision Chat ID {vision_chat_id} not found")
+            web_source = []
+            text = None
+            if web_search:
+                text = self.web_searching(query)
+                web_source = self.get_websearch_links(text)
 
             assistant = self.bot_data[bot_id]['assistants'][vision_chat_id]
-            prompt = assistant.get_answer(query)
+            prompt, doc_sources = assistant.get_answer(query, text)
             vision = VisionBot(prompt)
             vision.create_vision_bot(image_paths)
             vision_response = vision.get_response(query)
             assistant.save_chat_history(query, vision_response)
 
-            # Insert data into the vision_chats collection
+            if self.encrypt_chats:
+                encrypted_query = self._encrypt_data(query)
+                encrypted_vision_response = self._encrypt_data(vision_response)
+                if len(web_source) > 0:
+                    encrypted_web_source = [self._encrypt_data(source) for source in web_source]
+            else:
+                encrypted_web_source = web_source
+
+            # Insert the vision chat data along with web sources into MongoDB
             self.vision_chats.insert_one({
                 "bot_id": bot_id,
                 "vision_chat_id": vision_chat_id,
                 "image_path": ','.join(image_paths),
-                "question": query,
-                "response": vision_response
+                "question": encrypted_query if self.encrypt_chats else query,
+                "response": encrypted_vision_response if self.encrypt_chats else vision_response,
+                "web_sources": encrypted_web_source  # Inserting web sources
             })
 
-            return vision_response
+            return vision_response, web_source
         except Exception as e:
             print(f"Error getting vision response: {e}")
             return None
@@ -383,3 +508,62 @@ class LongTrainer:
             del self.bot_data[bot_id]
         else:
             raise Exception(f"Bot ID {bot_id} not found")
+
+    def list_chats(self, bot_id):
+        """
+         Lists the initial portion of each chat for a specified bot.
+
+         This method retrieves a list of chats associated with the given bot_id from the MongoDB database.
+         It displays the chat ID and the first few words of the question part of each chat. If encryption
+         is enabled for the chats, it decrypts the questions before displaying them.
+
+         Args:
+             bot_id (str): The unique identifier of the bot for which the chat list is requested.
+
+         Returns:
+             None: This method prints the chat ID and a snippet of each chat directly to the console.
+                   It does not return any value.
+
+         Note:
+             The method prints each chat's ID and the first five words of its question to give an overview.
+             The chat content is truncated for brevity in the listing.
+         """
+        chat_list = self.chats.find({"bot_id": bot_id}, {"chat_id": 1, "question": 1})
+        for chat in chat_list:
+            chat_id = chat["chat_id"]
+            question = chat["question"]
+            if self.encrypt_chats:
+                question = self._decrypt_data(question)
+            print(f"Chat ID: {chat_id}, Question: {' '.join(question.split()[:5])}...")
+
+    def get_chat_by_id(self, chat_id):
+        """
+        Retrieves the full details of a specific chat using its unique chat ID.
+
+        This method fetches the chat data, including the question, answer, and web sources, from the MongoDB
+        database for the given chat_id. If the chats are encrypted, it decrypts the question, answer, and
+        each web source before returning them. If no chat is found with the given chat_id, it returns None.
+
+        Args:
+            chat_id (str): The unique identifier of the chat session to be retrieved.
+
+        Returns:
+            dict: A dictionary containing the chat's details, including 'question', 'answer', and 'web_sources',
+                  if the chat is found. Each element of the 'web_sources' is decrypted if encryption is enabled.
+            None: If no chat is found with the given chat_id.
+
+        Note:
+            If 'encrypt_chats' is set to True, the method will decrypt the data before returning it.
+            The decryption is applied to the 'question', 'answer', and each element in the 'web_sources' list.
+        """
+        chat = self.chats.find_one({"chat_id": chat_id})
+        if chat:
+            if self.encrypt_chats:
+                chat["question"] = self._decrypt_data(chat["question"])
+                chat["answer"] = self._decrypt_data(chat["answer"])
+                # Decrypt each web source if the list is not empty
+                if "web_sources" in chat and chat["web_sources"]:
+                    chat["web_sources"] = [self._decrypt_data(source) for source in chat["web_sources"]]
+            return chat
+        else:
+            return None
