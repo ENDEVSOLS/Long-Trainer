@@ -9,7 +9,7 @@ youtube-transcript-api==0.6.1
 pytube==15.0.0
 pypdf==3.17.1
 docx2txt==0.8
-fastapi==0.104.1
+fastapi==0.109.1
 uvicorn==0.23.2
 pydantic==1.10.7
 pymongo>=3.11
