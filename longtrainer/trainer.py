@@ -1,3 +1,7 @@
+import os
+import shutil
+from datetime import datetime
+
 from longtrainer.loaders import DocumentLoader, TextSplitter
 from longtrainer.retrieval import DocRetriever
 from longtrainer.bot import ChainBot
@@ -9,6 +13,7 @@ from langchain.tools import DuckDuckGoSearchResults
 from pymongo import MongoClient
 from cryptography.fernet import Fernet
 import uuid
+import pandas as pd
 import re
 
 
@@ -96,12 +101,44 @@ class LongTrainer:
         return bot_id
 
     def web_searching(self, query):
+        """
+        Performs a web search for the given query and returns the search results as text.
 
+        This method utilizes an integrated search service to query the web and retrieve results. The
+        results are returned in a text format, potentially including titles, snippets, and links.
+
+        Args:
+            query (str): The search query to be executed.
+
+        Returns:
+            str: The text representation of the search results, which may include various metadata
+                 such as titles, snippets, and links.
+        """
         text = self.search.run(query)
         return text
 
     def get_websearch_links(self, text):
+        """
+        Extracts and returns web search result links from the given text.
 
+        This method parses the provided text to extract web links. It expects the text to contain
+        search results in a specific format, where each result may include a title, a snippet, and a
+        link. Only the links are extracted and returned.
+
+        Args:
+            text (str): The text containing web search results, expected to follow a specific format
+                        with segments delineated by brackets '[]' and key-value pairs for titles,
+                        snippets, and links.
+
+        Returns:
+            list of str: A list of extracted web links from the search results. If no valid links are
+                         found within the text, an empty list is returned.
+
+        Note:
+            The method assumes a specific formatting of the search result text, relying on regex
+            patterns to identify and extract link information. This may need adjustments if the
+            formatting of the search results changes.
+        """
         segments = re.findall(r'\[([^]]+)\]', text)
 
         results = []
@@ -145,6 +182,7 @@ class LongTrainer:
                 file_extension = path.split('.')[-1].lower()
                 if file_extension == 'csv':
                     documents = self.document_loader.load_csv(path)
+                    print(documents)
                 elif file_extension == 'docx':
                     documents = self.document_loader.load_doc(path)
                 elif file_extension == 'pdf':
@@ -352,7 +390,7 @@ class LongTrainer:
         '''
         return self.fernet.decrypt(data.encode()).decode()
 
-    def _get_response(self, query, bot_id, chat_id, web_search=False):
+    def get_response(self, query, bot_id, chat_id, web_search=False):
         """
         Retrieves a response from the conversational AI assistant for a given query, potentially
         incorporating web search results.
@@ -409,6 +447,8 @@ class LongTrainer:
             encrypted_result = self._encrypt_data(answer)
             if len(web_source) > 0:
                 encrypted_web_source = [self._encrypt_data(source) for source in web_source]
+            else:
+                encrypted_web_source = []
         else:
             encrypted_web_source = web_source
 
@@ -418,12 +458,13 @@ class LongTrainer:
             "chat_id": chat_id,
             "question": encrypted_query if self.encrypt_chats else query,
             "answer": encrypted_result if self.encrypt_chats else answer,
-            "web_sources": encrypted_web_source  # Inserting web sources
+            "web_sources": encrypted_web_source,  # Inserting web sources
+            "trained": False  # Indicate this chat has not been trained yet
         })
 
         return answer, web_source
 
-    def _get_vision_response(self, query, image_paths, bot_id, vision_chat_id, web_search=False):
+    def get_vision_response(self, query, image_paths, bot_id, vision_chat_id, web_search=False):
         """
         Retrieves a response from the vision AI assistant for a given query and set of images,
         potentially incorporating web search results.
@@ -467,6 +508,8 @@ class LongTrainer:
                 encrypted_vision_response = self._encrypt_data(vision_response)
                 if len(web_source) > 0:
                     encrypted_web_source = [self._encrypt_data(source) for source in web_source]
+                else:
+                    encrypted_web_source = []
             else:
                 encrypted_web_source = web_source
 
@@ -477,7 +520,9 @@ class LongTrainer:
                 "image_path": ','.join(image_paths),
                 "question": encrypted_query if self.encrypt_chats else query,
                 "response": encrypted_vision_response if self.encrypt_chats else vision_response,
-                "web_sources": encrypted_web_source  # Inserting web sources
+                "web_sources": encrypted_web_source,  # Inserting web sources
+                "trained": False  # Indicate this chat has not been trained yet
+
             })
 
             return vision_response, web_source
@@ -487,7 +532,7 @@ class LongTrainer:
 
     def delete_chatbot(self, bot_id):
         """
-        Deletes a chatbot and its associated data from the system.
+        Deletes a chatbot and its associated data from the system, including any stored CSV files.
 
         Args:
             bot_id (str): The unique identifier for the bot to be deleted.
@@ -506,64 +551,130 @@ class LongTrainer:
             if bot['retriever']:
                 bot['retriever'].delete_index(file_path=bot['faiss_path'])
             del self.bot_data[bot_id]
+
+            # Delete the bot-specific data folder
+            data_folder_path = f"./data-{bot_id}"
+            try:
+                shutil.rmtree(data_folder_path)
+                print(f"Deleted data folder for bot ID {bot_id}.")
+            except Exception as e:
+                print(f"Error deleting data folder for bot ID {bot_id}: {e}")
         else:
             raise Exception(f"Bot ID {bot_id} not found")
 
     def list_chats(self, bot_id):
         """
-         Lists the initial portion of each chat for a specified bot.
+        Lists unique chats for a specified bot, showing only the start of the first prompt for each chat.
 
-         This method retrieves a list of chats associated with the given bot_id from the MongoDB database.
-         It displays the chat ID and the first few words of the question part of each chat. If encryption
-         is enabled for the chats, it decrypts the questions before displaying them.
+        This method retrieves a list of unique chat sessions associated with the given bot_id from the MongoDB database.
+        It displays the chat ID and the first few words of the first question part of each unique chat session. If encryption
+        is enabled for the chats, it decrypts the questions before displaying them.
 
-         Args:
-             bot_id (str): The unique identifier of the bot for which the chat list is requested.
+        Args:
+            bot_id (str): The unique identifier of the bot for which the chat list is requested.
 
-         Returns:
-             None: This method prints the chat ID and a snippet of each chat directly to the console.
-                   It does not return any value.
+        Returns:
+            None: This method prints the chat ID and a snippet of the first question of each unique chat session directly to the console.
+                  It does not return any value.
 
-         Note:
-             The method prints each chat's ID and the first five words of its question to give an overview.
-             The chat content is truncated for brevity in the listing.
-         """
-        chat_list = self.chats.find({"bot_id": bot_id}, {"chat_id": 1, "question": 1})
-        for chat in chat_list:
-            chat_id = chat["chat_id"]
-            question = chat["question"]
+        Note:
+            The method assumes each chat session has a unique chat_id and fetches the first question to give an overview.
+            The chat content is truncated for brevity in the listing.
+        """
+        unique_chats = self.chats.aggregate([
+            {"$match": {"bot_id": bot_id}},
+            {"$group": {"_id": "$chat_id", "first_question": {"$first": "$question"}}}
+        ])
+
+        for chat in unique_chats:
+            chat_id = chat["_id"]
+            question = chat["first_question"]
             if self.encrypt_chats:
                 question = self._decrypt_data(question)
             print(f"Chat ID: {chat_id}, Question: {' '.join(question.split()[:5])}...")
 
     def get_chat_by_id(self, chat_id):
         """
-        Retrieves the full details of a specific chat using its unique chat ID.
+        Retrieves the full conversation details belonging to a specific chat using its unique chat ID.
 
-        This method fetches the chat data, including the question, answer, and web sources, from the MongoDB
-        database for the given chat_id. If the chats are encrypted, it decrypts the question, answer, and
-        each web source before returning them. If no chat is found with the given chat_id, it returns None.
+        This method fetches all chat data related to the given chat_id from the MongoDB database. If the chats are encrypted,
+        it decrypts the questions, answers, and web sources before compiling them into a single response object.
+        If no chats are found with the given chat_id, it returns None.
 
         Args:
             chat_id (str): The unique identifier of the chat session to be retrieved.
 
         Returns:
-            dict: A dictionary containing the chat's details, including 'question', 'answer', and 'web_sources',
-                  if the chat is found. Each element of the 'web_sources' is decrypted if encryption is enabled.
-            None: If no chat is found with the given chat_id.
+            list: A list of dictionaries, each containing the details of a part of the chat session,
+                  including 'question', 'answer', and 'web_sources', if found. Each element is decrypted if encryption is enabled.
+            None: If no chats are found with the given chat_id.
 
         Note:
-            If 'encrypt_chats' is set to True, the method will decrypt the data before returning it.
-            The decryption is applied to the 'question', 'answer', and each element in the 'web_sources' list.
+            If 'encrypt_chats' is set to True, the method decrypts the data before returning it. The decryption is applied to
+            'question', 'answer', and each element in the 'web_sources' list for every part of the conversation.
         """
-        chat = self.chats.find_one({"chat_id": chat_id})
-        if chat:
+        chat_data = list(self.chats.find({"chat_id": chat_id}))
+
+        if not chat_data:
+            return None
+
+        for chat in chat_data:
             if self.encrypt_chats:
                 chat["question"] = self._decrypt_data(chat["question"])
                 chat["answer"] = self._decrypt_data(chat["answer"])
-                # Decrypt each web source if the list is not empty
                 if "web_sources" in chat and chat["web_sources"]:
                     chat["web_sources"] = [self._decrypt_data(source) for source in chat["web_sources"]]
-            return chat
-        else:
-            return None
+
+        return chat_data
+
+    def _export_chats_to_csv(self, dataframe, bot_id):
+        """
+        Helper method to export chats to a CSV file.
+        """
+        csv_folder = f"./data-{bot_id}"
+        os.makedirs(csv_folder, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        csv_path = os.path.join(csv_folder, f"{bot_id}_data_{timestamp}.csv")
+        dataframe.to_csv(csv_path, index=False)
+        return csv_path
+
+    def train_chats(self, bot_id):
+        """
+        Trains the AI model on new chats that have not been processed yet.
+
+        This method identifies chats associated with the specified bot_id that haven't been processed for training,
+        exports these chats to a CSV file, and then trains the model using this new data. To avoid redundancy, only
+        new chats are processed and trained on.
+
+        Args:
+            bot_id (str): The unique identifier of the bot to train on new chats.
+
+        Returns:
+            dict: A dictionary containing a message and the path to the generated CSV file with new chats.
+        """
+        # Fetch new (unprocessed) chats
+        new_chats_query = {"bot_id": bot_id, "trained": {"$ne": True}}
+        new_chats = list(self.chats.find(new_chats_query))
+
+        if not new_chats:
+            return {"message": "No new chats found for training.", "csv_path": None}
+
+        # Decrypt if necessary and prepare DataFrame
+        if self.encrypt_chats:
+            for chat in new_chats:
+                chat["question"] = self._decrypt_data(chat["question"])
+                chat["answer"] = self._decrypt_data(chat["answer"])
+        df = pd.DataFrame(new_chats, columns=["question", "answer"])
+        df.columns = ["Question", "Answer"]
+
+        csv_path = self._export_chats_to_csv(df, bot_id)
+
+        # Mark chats as processed
+        chat_ids = [chat["_id"] for chat in new_chats]
+        self.chats.update_many({"_id": {"$in": chat_ids}}, {"$set": {"trained": True}})
+
+        # Train on the new data
+        self.add_document_from_path(path=csv_path, bot_id=bot_id)
+        self.create_bot(bot_id=bot_id)
+
+        return {"message": "Trainer updated with new chat history.", "csv_path": csv_path}
