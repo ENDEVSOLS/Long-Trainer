@@ -87,34 +87,37 @@ class DocRetriever:
         # Add this method to handle updates to the existing index
         if not self.faiss_index:
             raise ValueError("FAISS index not initialized.")
-        if len(new_documents) < 1000:
-            new_index = FAISS.from_documents(new_documents, self.embedding_model)
-        else:
-            # self.faiss_index = FAISS.from_documents(self.document_collection[:2000], self.embedding_model)
-            new_index = FAISS.from_documents(new_documents[:1000], self.embedding_model)
-            for i in range(1000, len(new_documents), 1000):
-                end_index = min(i + 1000, len(new_documents))
-                additional_index = FAISS.from_documents(new_documents[i:end_index], self.embedding_model)
-                new_index.merge_from(additional_index)
+        try:
+            if len(new_documents) < 1000:
+                new_index = FAISS.from_documents(new_documents, self.embedding_model)
+            else:
+                # self.faiss_index = FAISS.from_documents(self.document_collection[:2000], self.embedding_model)
+                new_index = FAISS.from_documents(new_documents[:1000], self.embedding_model)
+                for i in range(1000, len(new_documents), 1000):
+                    end_index = min(i + 1000, len(new_documents))
+                    additional_index = FAISS.from_documents(new_documents[i:end_index], self.embedding_model)
+                    new_index.merge_from(additional_index)
 
-        # new_index = FAISS.from_documents(new_documents, self.embedding_model)
+            # new_index = FAISS.from_documents(new_documents, self.embedding_model)
 
 
-        self.faiss_index.merge_from(new_index)
+            self.faiss_index.merge_from(new_index)
 
-        # Update the document collection
-        self.document_collection.extend(new_documents)
-        # Initialize BM25 and FAISS retrievers
-        self.bm25_retriever = BM25Retriever.from_documents(self.document_collection)
-        self.bm25_retriever.k = self.k
+            # Update the document collection
+            self.document_collection.extend(new_documents)
+            # Initialize BM25 and FAISS retrievers
+            self.bm25_retriever = BM25Retriever.from_documents(self.document_collection)
+            self.bm25_retriever.k = self.k
 
-        self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": self.k})
+            self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": self.k})
 
-        # Create an Ensemble Retriever combining BM25 and FAISS
-        self.ensemble_retriever = EnsembleRetriever(
-            retrievers=[self.bm25_retriever, self.faiss_retriever],
-            weights=[0.5, 0.5]
-        )
+            # Create an Ensemble Retriever combining BM25 and FAISS
+            self.ensemble_retriever = EnsembleRetriever(
+                retrievers=[self.bm25_retriever, self.faiss_retriever],
+                weights=[0.5, 0.5]
+            )
+        except Exception as e:
+            print(f"Error Updating FAISS index: {e}")
 
     def delete_index(self, file_path):
         """
