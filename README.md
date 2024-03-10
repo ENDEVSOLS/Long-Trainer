@@ -1,5 +1,6 @@
 
 # LongTrainer - Production-Ready LangChain
+<img src="assets/longtrainer-logo.png" height=200px width=500px>
 
 
 ## Features 🌟
