@@ -14,6 +14,9 @@
   <a href="https://pepy.tech/project/longtrainer">
     <img src="https://static.pepy.tech/badge/longtrainer/month" alt="Monthly Downloads">
   </a>
+  <a href="https://colab.research.google.com/drive/1HE30D5q5onD8sfS50-06XPDXnbdvnjIy?usp=sharing">
+    <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open in Colab">
+  </a>
 </p>
 
 <hr />
@@ -121,3 +124,18 @@ trainer.get_chat_by_id(chat_id=chat_id)
 ```
 
 This project is still under active development. Community feedback and contributions are highly appreciated. 
+
+
+## Citation
+If you utilize this repository, please consider citing it with:
+
+```
+@misc{longtrainer,
+  author = {Endevsols},
+  title = {LongTrainer: Production-Ready LangChain},
+  year = {2023},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/ENDEVSOLS/Long-Trainer}},
+}
+```
