@@ -18,9 +18,12 @@
     <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open in Colab">
   </a>
 </p>
-
 <hr />
-
+<p align="center">
+  <a href="https://endevsols.com/longtrainer-the-next-evolution-in-production-ready-langchain-frameworks/">
+    Visit Blog Post
+  </a>
+</p>
 
 
 
