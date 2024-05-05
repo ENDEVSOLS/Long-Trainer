@@ -1,6 +1,24 @@
+<p align="center">
+  <img src="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/assets/longtrainer-logo.png?raw=true" alt="LongTrainer Logo">
+</p>
 
-# LongTrainer - Production-Ready LangChain
-<img src="assets/longtrainer-logo.png" height=200px width=500px>
+<h1 align="center">LongTrainer - Production-Ready LangChain</h1>
+
+<p align="center">
+  <a href="https://pypi.org/project/longtrainer/">
+    <img src="https://img.shields.io/pypi/v/longtrainer" alt="PyPI Version">
+  </a>
+  <a href="https://pepy.tech/project/longtrainer">
+    <img src="https://static.pepy.tech/badge/longtrainer" alt="Total Downloads">
+  </a>
+  <a href="https://pepy.tech/project/longtrainer">
+    <img src="https://static.pepy.tech/badge/longtrainer/month" alt="Monthly Downloads">
+  </a>
+</p>
+
+<hr />
+
+
 
 
 ## Features 🌟
