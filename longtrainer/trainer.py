@@ -1,7 +1,11 @@
 import os
+import re
+import uuid
 import shutil
+import pandas as pd
 from datetime import datetime
-
+from pymongo import MongoClient
+from cryptography.fernet import Fernet
 from longtrainer.loaders import DocumentLoader, TextSplitter
 from longtrainer.retrieval import DocRetriever
 from longtrainer.bot import ChainBot
@@ -12,11 +16,6 @@ from langchain_openai.embeddings import OpenAIEmbeddings
 from langchain.prompts import PromptTemplate
 from langchain_community.tools import DuckDuckGoSearchResults
 from longtrainer.utils import serialize_document, deserialize_document
-from pymongo import MongoClient
-from cryptography.fernet import Fernet
-import uuid
-import pandas as pd
-import re
 
 
 class LongTrainer:
