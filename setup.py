@@ -2,9 +2,9 @@ from setuptools import setup, find_packages
 
 setup(
     name='longtrainer',
-    version='0.2.1',
+    version='0.2.2',
     packages=find_packages(),
-    description='Produciton Ready LangChain',
+    description='Production Ready LangChain',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     author='Endevsols',

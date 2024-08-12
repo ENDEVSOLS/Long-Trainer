@@ -3,7 +3,7 @@ import re
 import uuid
 import shutil
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 from pymongo import MongoClient
 from cryptography.fernet import Fernet
 from longtrainer.loaders import DocumentLoader, TextSplitter
@@ -51,7 +51,7 @@ class LongTrainer:
 
         """
 
-        self.llm = llm if llm is not None else ChatOpenAI(model_name='gpt-4-1106-preview')
+        self.llm = llm if llm is not None else ChatOpenAI(model_name='gpt-4-turbo')
         self.embedding_model = embedding_model if embedding_model is not None else OpenAIEmbeddings()
         self.prompt_template = prompt_template if prompt_template is not None else self._default_prompt_template()
         self.prompt = PromptTemplate(template=self.prompt_template,
@@ -177,7 +177,7 @@ class LongTrainer:
         Returns the default prompt template for the assistant.
         """
         return """
-        You will act as Intelligent assistant and your name is longtrainer and you will asnwer the any kind of query. YOu will act like conversation chatbot to interact with user. You will introduce your self as longtrainer.
+        You will act as Intelligent assistant , your name is longtrainer and you will answer the any kind of query. YOu will act like conversation chatbot to interact with user. You will introduce your self as longtrainer.
         {context}
         Use the following pieces of information to answer the user's question. If the answer is unknown, admitting ignorance is preferred over fabricating a response. Dont need to add irrelevant text explanation in response.
         Answers should be direct, professional, and to the point without any irrelevant details.
@@ -187,28 +187,34 @@ class LongTrainer:
         Answer:
         """
 
-    def add_document_from_path(self, path, bot_id):
+    def add_document_from_path(self, path, bot_id, use_unstructured=True):
         """
         Loads and adds documents from a specified file path.
 
         Args:
             path (str): Path to the document file.
+            use_unstructured (bool) : Use Unstructured Document Loader
         """
         try:
             if bot_id in self.bot_data:
-                file_extension = path.split('.')[-1].lower()
-                if file_extension == 'csv':
-                    documents = self.document_loader.load_csv(path)
-                elif file_extension == 'docx':
-                    documents = self.document_loader.load_doc(path)
-                elif file_extension == 'pdf':
-                    documents = self.document_loader.load_pdf(path)
-                elif file_extension in ['md', 'markdown', 'txt']:
-                    documents = self.document_loader.load_markdown(path)
-                elif file_extension in ['html', 'htm']:
-                    documents = self.document_loader.load_text_from_html(path)
+
+                if use_unstructured:
+                    documents = self.document_loader.load_unstructured(path)
+
                 else:
-                    raise ValueError(f"Unsupported file type: {file_extension}")
+                    file_extension = path.split('.')[-1].lower()
+                    if file_extension == 'csv':
+                        documents = self.document_loader.load_csv(path)
+                    elif file_extension == 'docx':
+                        documents = self.document_loader.load_doc(path)
+                    elif file_extension == 'pdf':
+                        documents = self.document_loader.load_pdf(path)
+                    elif file_extension in ['md', 'markdown', 'txt']:
+                        documents = self.document_loader.load_markdown(path)
+                    elif file_extension in ['html', 'htm']:
+                        documents = self.document_loader.load_text_from_html(path)
+                    else:
+                        raise ValueError(f"Unsupported file type: {file_extension}")
 
                 for doc in documents:
                     self.documents_collection.insert_one({
@@ -282,18 +288,31 @@ class LongTrainer:
         except Exception as e:
             print(f"Error adding documents: {e}")
 
-    def create_bot(self, bot_id):
+    def create_bot(self, bot_id, prompt_template=None):
         """
-        Creates and returns a conversational AI assistant based on the loaded documents.
+        Creates and returns a conversational AI assistant based on the loaded documents,
+        with an individual prompt template for each bot.
 
         Args:
             bot_id (str): The unique identifier for the bot.
+            prompt_template (str, optional): Custom prompt template for this specific bot.
 
         Returns:
-            A function that will initialize Chatbot, or return None if an error occurs.
+            A function that will initialize Chatbot, or None if an error occurs.
         """
         try:
             if bot_id in self.bot_data:
+
+                # Use the provided prompt template or fallback to the bot-specific or default prompt
+                if prompt_template:
+                    self.bot_data[bot_id]['prompt_template'] = prompt_template
+                    self.bot_data[bot_id]['prompt'] = PromptTemplate(template=prompt_template,
+                                                                     input_variables=["context", "chat_history",
+                                                                                      "question"])
+                else:
+                    self.bot_data[bot_id]['prompt_template'] = self.prompt_template
+                    self.bot_data[bot_id]['prompt'] = self.prompt  # Default or existing prompt
+
                 all_splits = self.text_splitter.split_documents(self.bot_data[bot_id]['documents'])
                 self.bot_data[bot_id]['retriever'] = DocRetriever(all_splits, self.embedding_model,
                                                                   existing_faiss_index=self.bot_data[bot_id][
@@ -301,6 +320,12 @@ class LongTrainer:
                                                                       'retriever'] else None, num_k=self.k)
                 self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
                 self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
+
+                self.bots.update_one({'bot_id': bot_id},
+                                     {'$set': {
+                                         'prompt_template': self.bot_data[bot_id]['prompt_template'],
+                                     }})
+
 
         except Exception as e:
             print(f"Error creating bot: {e}")
@@ -331,7 +356,8 @@ class LongTrainer:
                 print(f"No configuration found for {bot_id}. Initializing new bot...")
                 bot_config = {
                     'bot_id': bot_id,
-                    'faiss_path': f'faiss_index_{bot_id}'
+                    'faiss_path': f'faiss_index_{bot_id}',
+                    'prompt_template': self.prompt_template
                 }
                 self.bots.insert_one(bot_config)
 
@@ -347,7 +373,8 @@ class LongTrainer:
                 'ensemble_retriever': None,
                 'conversational_chain': None,
                 'faiss_path': bot_config['faiss_path'],
-                'assistant': None
+                'assistant': None,
+                'prompt_template': bot_config['prompt_template'],
             }
 
             faiss_path = self.bot_data[bot_id]['faiss_path']
@@ -367,6 +394,12 @@ class LongTrainer:
             # After initializing DocRetriever, possibly use it to update or initialize ensemble_retriever and conversational_chain as needed
             self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id][
                 'retriever'].retrieve_documents()  # Example
+
+            prompt_template = bot_config.get('prompt_template', self._default_prompt_template())
+            self.bot_data[bot_id]['prompt_template'] = prompt_template
+            self.bot_data[bot_id]['prompt'] = PromptTemplate(template=prompt_template,
+                                                             input_variables=["context", "chat_history", "question"])
+
             print(f"Bot {bot_id} initialized or loaded successfully with documents from MongoDB.")
         except Exception as e:
             print(f"Error loading bot by ID: {e}")
@@ -383,7 +416,8 @@ class LongTrainer:
         """
         try:
             chat_id = 'chat-' + str(uuid.uuid4())
-            bot = ChainBot(retriever=self.bot_data[bot_id]['ensemble_retriever'], llm=self.llm, prompt=self.prompt,
+            bot = ChainBot(retriever=self.bot_data[bot_id]['ensemble_retriever'], llm=self.llm,
+                           prompt=self.bot_data[bot_id]['prompt'],
                            token_limit=self.max_token_limit)
             self.bot_data[bot_id]['conversational_chain'] = bot.get_chain()
             self.bot_data[bot_id]['chains'][chat_id] = self.bot_data[bot_id]['conversational_chain']
@@ -406,7 +440,7 @@ class LongTrainer:
             vision_chat_id = 'vision-' + str(uuid.uuid4())
             self.bot_data[bot_id]['assistant'] = VisionMemory(self.max_token_limit,
                                                               self.bot_data[bot_id]['ensemble_retriever'],
-                                                              prompt_template=self.prompt_template)
+                                                              prompt_template=self.bot_data[bot_id]['prompt_template'])
             self.bot_data[bot_id]['assistants'][vision_chat_id] = self.bot_data[bot_id]['assistant']
 
             return vision_chat_id
@@ -414,7 +448,7 @@ class LongTrainer:
             print(f"Error creating new Vision Chat: {e}")
             return None
 
-    def update_chatbot(self, paths, bot_id, links=None, search_query=None):
+    def update_chatbot(self, paths, bot_id, links=None, search_query=None, prompt_template=None, use_unstructured=True):
 
         """
         Updates the chatbot with new documents from given paths, links, and a search query.
@@ -424,6 +458,7 @@ class LongTrainer:
             links (list): List of web links to load documents from.
             search_query (str): Wikipedia search query to load documents from.
             bot_id (str): The unique identifier for the bot.
+            use_unstructured (bool) : Use Unstructured Document Loader.
 
         Raises:
             Exception: If the bot ID is not found.
@@ -431,7 +466,7 @@ class LongTrainer:
         try:
             initial_docs_len = len(self.bot_data[bot_id]['documents'])
             for path in paths:
-                self.add_document_from_path(path, bot_id)
+                self.add_document_from_path(path=path, bot_id=bot_id, use_unstructured=use_unstructured)
             if links:
                 self.add_document_from_link(links, bot_id)
             if search_query:
@@ -461,7 +496,7 @@ class LongTrainer:
                 self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
                 self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
-            self.create_bot(bot_id)
+            self.create_bot(bot_id, prompt_template)
         except Exception as e:
             print(f"Error updating chatbot: {e}")
 
@@ -495,7 +530,7 @@ class LongTrainer:
         except Exception as e:
             print(f"Error Decrypting Documents: {e}")
 
-    def get_response(self, query, bot_id, chat_id, web_search=False):
+    def get_response(self, query, bot_id, chat_id, uploaded_files=None, web_search=False):
         """
         Retrieves a response from the conversational AI assistant for a given query, potentially
         incorporating web search results.
@@ -508,6 +543,7 @@ class LongTrainer:
             query (str): The query string for the assistant.
             bot_id (str): The unique identifier for the bot.
             chat_id (str): The unique identifier for the chat session.
+            uploaded_files (list of dict): List of files with metadata including name, type, and URL/path.
             web_search (bool, optional): Flag to enable or disable web search integration. Defaults to False.
 
         Returns:
@@ -524,6 +560,8 @@ class LongTrainer:
                 raise Exception(
                     f"Chat ID {chat_id} not found in bot {bot_id}. Available chats: {list(self.bot_data[bot_id]['chains'].keys())}")
 
+            chain = self.bot_data[bot_id]['chains'][chat_id]
+
             web_source = []
             webdata = None
             seen_sources = set()
@@ -531,23 +569,31 @@ class LongTrainer:
             if web_search:
                 webdata = self.web_searching(query)
                 web_source = self.get_websearch_links(webdata)
+                updated_query = f"""
+                {query}
+            
+                Additional context from web:
+                {webdata}
+                """
+            else:
+                updated_query = query
 
-            chain = self.bot_data[bot_id]['chains'][chat_id]
+            if uploaded_files:
+                file_details = "\n".join(
+                    [f"File: {file['name']} (Type: {file['type']}) URL: {file['url']}" for file in uploaded_files])
+                final_query = f"""
+                Uploaded Files Content:
+                {file_details}
+                
+                Question:
+                {updated_query}
+                """
+            else:
+                final_query = updated_query
 
-            updated_query = f"{query}\nKindly consider the following text that's extracted from web search while answering the question. The following wensearch context will help you to provide upfated knowledge and kindly consider it must in answering the question.\n{webdata}" if webdata else query
-
-            result = chain(updated_query)
+            result = chain(final_query)
 
             answer = result.get('answer')
-
-            for doc in result['source_documents']:
-                # Assuming 'metadata' is an attribute of the 'Document' object and 'source' is a key in that metadata dictionary
-                source = doc.metadata.get('source') if hasattr(doc, 'metadata') and isinstance(doc.metadata,
-                                                                                               dict) else None
-
-                if source and source not in seen_sources:
-                    unique_sources.append(source)
-                    seen_sources.add(source)
 
             if self.encrypt_chats:
                 encrypted_query = self._encrypt_data(query)
@@ -559,13 +605,18 @@ class LongTrainer:
             else:
                 encrypted_web_source = web_source
 
-                # Insert the chat data along with web sources into MongoDB
+            # Get current time as timestamp, timezone aware
+            current_time = datetime.now(timezone.utc)
+
+            # Insert the chat data along with web sources into MongoDB
             self.chats.insert_one({
                 "bot_id": bot_id,
                 "chat_id": chat_id,
+                "timestamp": current_time,
                 "question": encrypted_query if self.encrypt_chats else query,
                 "answer": encrypted_result if self.encrypt_chats else answer,
                 "web_sources": encrypted_web_source,  # Inserting web sources
+                "uploaded_files": uploaded_files,
                 "trained": False  # Indicate this chat has not been trained yet
             })
 
@@ -573,7 +624,7 @@ class LongTrainer:
         except Exception as e:
             print(f"Error getting Bot Response: {e}")
 
-    def get_vision_response(self, query, image_paths, bot_id, vision_chat_id, web_search=False):
+    def get_vision_response(self, query, image_paths, bot_id, vision_chat_id, uploaded_files=None, web_search=False):
         """
         Retrieves a response from the vision AI assistant for a given query and set of images,
         potentially incorporating web search results.
@@ -587,6 +638,7 @@ class LongTrainer:
             image_paths (list of str): A list of paths to the images for the vision chat.
             bot_id (str): The unique identifier for the bot.
             vision_chat_id (str): The unique identifier for the vision chat session.
+            uploaded_files (list of dict): List of files with metadata including name, type, and URL/path.
             web_search (bool, optional): Flag to enable or disable web search integration. Defaults to False.
 
         Returns:
@@ -606,7 +658,21 @@ class LongTrainer:
                 web_source = self.get_websearch_links(text)
 
             assistant = self.bot_data[bot_id]['assistants'][vision_chat_id]
-            prompt, doc_sources = assistant.get_answer(query, text)
+
+            if uploaded_files:
+                file_details = "\n".join(
+                    [f"File: {file['name']} (Type: {file['type']}) URL: {file['url']}" for file in uploaded_files])
+                final_query = f"""
+                Uploaded Files Content:
+                {file_details}
+
+                Question:
+                {query}
+                """
+            else:
+                final_query = query
+
+            prompt, doc_sources = assistant.get_answer(final_query, text)
             vision = VisionBot(prompt)
             vision.create_vision_bot(image_paths)
             vision_response = vision.get_response(query)
@@ -622,14 +688,19 @@ class LongTrainer:
             else:
                 encrypted_web_source = web_source
 
+            # Get current time as timestamp, timezone aware
+            current_time = datetime.now(timezone.utc)
+
             # Insert the vision chat data along with web sources into MongoDB
             self.vision_chats.insert_one({
                 "bot_id": bot_id,
                 "vision_chat_id": vision_chat_id,
+                "timestamp": current_time,
                 "image_path": ','.join(image_paths),
                 "question": encrypted_query if self.encrypt_chats else query,
                 "response": encrypted_vision_response if self.encrypt_chats else vision_response,
                 "web_sources": encrypted_web_source,  # Inserting web sources
+                "uploaded_files": uploaded_files,
                 "trained": False  # Indicate this chat has not been trained yet
 
             })

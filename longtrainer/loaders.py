@@ -3,7 +3,34 @@ from langchain.document_loaders import (CSVLoader, WikipediaLoader, Unstructured
                                         Docx2txtLoader, UnstructuredMarkdownLoader)
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
+from langchain_unstructured import UnstructuredLoader
+
+
 class DocumentLoader:
+    def load_unstructured(self, path):
+        """
+        Load data from a file at the specified path:
+
+        supported files:
+        "csv", "doc", "docx", "epub", "image", "md", "msg", "odt", "org", "pdf", "ppt", "pptx", "rtf", "rst", "tsv", "xlsx"
+
+
+        Args:
+            path (str): The file paths
+
+        Returns:
+            The loaded  data.
+
+        Exceptions:
+            Prints an error message if the loading fails.
+        """
+        try:
+            loader = UnstructuredLoader(path)
+            data = loader.load()
+            return data
+        except Exception as e:
+            print(f"Error loading Unstructured: {e}")
+
     def load_csv(self, path):
         """
         Load data from a CSV file at the specified path.
