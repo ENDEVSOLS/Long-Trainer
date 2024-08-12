@@ -580,7 +580,7 @@ class LongTrainer:
 
             if uploaded_files:
                 file_details = "\n".join(
-                    [f"File: {file['name']} (Type: {file['type']}) URL: {file['url']}" for file in uploaded_files])
+                    [f"File: {file['name']} \n (Type: {file['type']}) \n URL: {file['url']} \n Extracted Text: {file['extracted_text']} " for file in uploaded_files])
                 final_query = f"""
                 Uploaded Files Content:
                 {file_details}

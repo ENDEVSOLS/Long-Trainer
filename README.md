@@ -103,7 +103,7 @@ chat_id = trainer.new_chat(bot_id)
         
 # Send a Query and Get a Response
 query = 'Your query here'
-response = trainer._get_response(query, bot_id, chat_id)
+response = trainer.get_response(query, bot_id, chat_id)
 print('Response: ', response)
   ```
 
@@ -114,7 +114,7 @@ chat_id = trainer.new_vision_chat(bot_id)
 
 query = 'Your query here'
 image_paths=['nvidia.jpg']
-response = trainer._get_vision_response(query, image_paths, str(bot_id),str(vision_id))
+response = trainer.get_vision_response(query, image_paths, str(bot_id),str(vision_id))
 print('Response: ', response)
 ```
 
