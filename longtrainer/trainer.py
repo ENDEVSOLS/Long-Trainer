@@ -187,6 +187,22 @@ class LongTrainer:
         Answer:
         """
 
+    def set_custom_prompt_template(self, bot_id, prompt_template):
+        """
+        prompt_template (str, optional): Custom prompt template bot.
+        """
+        try:
+            self.bot_data[bot_id]['prompt_template'] = prompt_template
+            self.bot_data[bot_id]['prompt'] = PromptTemplate(template=prompt_template,
+                                                             input_variables=["context", "chat_history",
+                                                                              "question"])
+            self.bots.update_one({'bot_id': bot_id},
+                                 {'$set': {
+                                     'prompt_template': self.bot_data[bot_id]['prompt_template'],
+                                 }})
+        except Exception as e:
+            print(f"Error Setting Prompt Template: {e}")
+
     def add_document_from_path(self, path, bot_id, use_unstructured=True):
         """
         Loads and adds documents from a specified file path.
@@ -580,7 +596,9 @@ class LongTrainer:
 
             if uploaded_files:
                 file_details = "\n".join(
-                    [f"File: {file['name']} \n (Type: {file['type']}) \n URL: {file['url']} \n Extracted Text: {file['extracted_text']} " for file in uploaded_files])
+                    [
+                        f"File: {file['name']} \n (Type: {file['type']}) \n URL: {file['url']} \n Extracted Text: {file['extracted_text']} "
+                        for file in uploaded_files])
                 final_query = f"""
                 Uploaded Files Content:
                 {file_details}
