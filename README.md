@@ -30,8 +30,6 @@
   <a class="github-button" href="https://github.com/ENDEVSOLS" data-color-scheme="no-preference: light; light: light; dark: dark;" data-size="large" data-show-count="true" aria-label="Follow @ENDEVSOLS on GitHub">Follow @ENDEVSOLS</a>
 </p>
 
-<!-- GitHub Buttons Script -->
-<script async defer src="https://buttons.github.io/buttons.js"></script>
 
 # Official Documentation
 
