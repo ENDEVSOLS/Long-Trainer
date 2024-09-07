@@ -16,7 +16,7 @@ pymongo==4.8.0
 python-docx==1.1.2
 langchain-openai==0.1.21
 langchain-community==0.2.11
-cryptography==42.0.6
+cryptography==43.0.1
 duckduckgo-search==6.2.6
 python-magic==0.4.27
 unstructured==0.15.1
