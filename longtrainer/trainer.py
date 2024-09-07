@@ -1,3 +1,4 @@
+import gc
 import os
 import re
 import uuid
@@ -93,7 +94,6 @@ class LongTrainer:
         try:
             bot_id = 'bot-' + str(uuid.uuid4())
             self.bot_data[bot_id] = {
-                'documents': [],
                 'chains': {},
                 'assistants': {},
                 'retriever': None,
@@ -203,6 +203,24 @@ class LongTrainer:
         except Exception as e:
             print(f"Error Setting Prompt Template: {e}")
 
+    def get_documents(self, bot_id):
+        """
+        Retrieves the documents from MongoDB for a specific bot only when needed.
+
+        Args:
+            bot_id (str): The unique identifier for the bot.
+
+        Returns:
+            List: A list of documents for the bot, fetched from MongoDB.
+        """
+        try:
+            documents = [deserialize_document(doc['document']) for doc in
+                         self.documents_collection.find({'bot_id': bot_id})]
+            return documents
+        except Exception as e:
+            print(f"Error loading documents for bot {bot_id}: {e}")
+            return []
+
     def add_document_from_path(self, path, bot_id, use_unstructured=True):
         """
         Loads and adds documents from a specified file path.
@@ -237,7 +255,10 @@ class LongTrainer:
                         'bot_id': bot_id,
                         'document': serialize_document(doc),
                     })
-                self.bot_data[bot_id]['documents'].extend(documents)
+
+                # After adding documents, delete local references and trigger garbage collection
+                del documents
+                gc.collect()
         except Exception as e:
             print(f"Error adding document from path: {e}")
 
@@ -261,7 +282,9 @@ class LongTrainer:
                             'bot_id': bot_id,
                             'document': serialize_document(doc),
                         })
-                    self.bot_data[bot_id]['documents'].extend(documents)
+                    # After adding documents, delete local references and trigger garbage collection
+                    del documents
+                    gc.collect()
         except Exception as e:
             print(f"Error adding document from link: {e}")
 
@@ -280,7 +303,10 @@ class LongTrainer:
                         'bot_id': bot_id,
                         'document': serialize_document(doc),
                     })
-                self.bot_data[bot_id]['documents'].extend(query_documents)
+
+                # After adding documents, delete local references and trigger garbage collection
+                del query_documents
+                gc.collect()
 
         except Exception as e:
             print(f"Error adding document from query: {e}")
@@ -299,7 +325,9 @@ class LongTrainer:
                         'bot_id': bot_id,
                         'document': serialize_document(doc),
                     })
-                self.bot_data[bot_id]['documents'].extend(documents)
+                # After adding documents, delete local references and trigger garbage collection
+                del documents
+                gc.collect()
 
         except Exception as e:
             print(f"Error adding documents: {e}")
@@ -329,7 +357,10 @@ class LongTrainer:
                     self.bot_data[bot_id]['prompt_template'] = self.prompt_template
                     self.bot_data[bot_id]['prompt'] = self.prompt  # Default or existing prompt
 
-                all_splits = self.text_splitter.split_documents(self.bot_data[bot_id]['documents'])
+                # Lazy load documents when needed
+                documents = self.get_documents(bot_id)
+                all_splits = self.text_splitter.split_documents(documents)
+
                 self.bot_data[bot_id]['retriever'] = DocRetriever(all_splits, self.embedding_model,
                                                                   existing_faiss_index=self.bot_data[bot_id][
                                                                       'retriever'].faiss_index if self.bot_data[bot_id][
@@ -341,7 +372,10 @@ class LongTrainer:
                                      {'$set': {
                                          'prompt_template': self.bot_data[bot_id]['prompt_template'],
                                      }})
-
+                # Delete local references to documents and trigger garbage collection
+                del documents
+                del all_splits
+                gc.collect()
 
         except Exception as e:
             print(f"Error creating bot: {e}")
@@ -377,12 +411,8 @@ class LongTrainer:
                 }
                 self.bots.insert_one(bot_config)
 
-            # Fetch documents from MongoDB for this bot
-            mongo_documents = list(self.documents_collection.find({'bot_id': bot_id}))
-            documents = [deserialize_document(doc['document']) for doc in mongo_documents]
             # Ensure all necessary keys in self.bot_data for bot initialization or loading
             self.bot_data[bot_id] = {
-                'documents': documents,  # Update this line to use the fetched documents
                 'chains': {},
                 'assistants': {},
                 'retriever': None,  # To be initialized below
@@ -401,7 +431,10 @@ class LongTrainer:
                 # Initialize a new FAISS index if not found
                 faiss_index = None
 
-            all_splits = self.text_splitter.split_documents(self.bot_data[bot_id]['documents'])
+            # Lazy load documents when needed
+            documents = self.get_documents(bot_id)
+            all_splits = self.text_splitter.split_documents(documents)
+
             # Initialize the DocRetriever with the documents fetched from MongoDB
             self.bot_data[bot_id]['retriever'] = DocRetriever(all_splits,
                                                               self.embedding_model,
@@ -415,6 +448,11 @@ class LongTrainer:
             self.bot_data[bot_id]['prompt_template'] = prompt_template
             self.bot_data[bot_id]['prompt'] = PromptTemplate(template=prompt_template,
                                                              input_variables=["context", "chat_history", "question"])
+
+            # Delete local references to documents and trigger garbage collection
+            del documents
+            del all_splits
+            gc.collect()
 
             print(f"Bot {bot_id} initialized or loaded successfully with documents from MongoDB.")
         except Exception as e:
@@ -480,7 +518,13 @@ class LongTrainer:
             Exception: If the bot ID is not found.
         """
         try:
-            initial_docs_len = len(self.bot_data[bot_id]['documents'])
+            # Fetch the current documents for the bot
+            existing_documents = self.get_documents(bot_id)  # Use the lazy loading method
+            initial_docs_len = len(existing_documents)
+
+            del existing_documents
+            gc.collect()
+
             for path in paths:
                 self.add_document_from_path(path=path, bot_id=bot_id, use_unstructured=use_unstructured)
             if links:
@@ -488,11 +532,12 @@ class LongTrainer:
             if search_query:
                 self.add_document_from_query(search_query, bot_id)
 
-            # Calculate new documents added
-            new_docs = self.bot_data[bot_id]['documents'][initial_docs_len:]
+            # Fetch the updated documents (after adding new ones)
+            updated_documents = self.get_documents(bot_id)  # Re-fetch documents after adding
+            new_docs = updated_documents[initial_docs_len:]  # Extract only the new documents
 
             if self.bot_data[bot_id]['retriever'] and self.bot_data[bot_id]['retriever'].faiss_index:
-                print(len(new_docs))
+                print("No of Splits: ", len(new_docs))
                 all_splits = self.text_splitter.split_documents(new_docs)
 
                 # Use the new method to update the existing index
@@ -501,7 +546,7 @@ class LongTrainer:
                 self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
             else:
-                all_splits = self.text_splitter.split_documents(self.bot_data[bot_id]['documents'])
+                all_splits = self.text_splitter.split_documents(updated_documents)
 
                 # If no retriever or FAISS index, create a new one
                 self.bot_data[bot_id]['retriever'] = DocRetriever(all_splits, self.embedding_model,
@@ -513,8 +558,13 @@ class LongTrainer:
                 self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
             self.create_bot(bot_id, prompt_template)
+
+            # Trigger garbage collection after the update to free up memory
+            del updated_documents, new_docs, all_splits
+            gc.collect()
         except Exception as e:
             print(f"Error updating chatbot: {e}")
+            gc.collect()
 
     def _encrypt_data(self, data):
         '''
@@ -608,6 +658,7 @@ class LongTrainer:
                 """
             else:
                 final_query = updated_query
+
 
             result = chain(final_query)
 
