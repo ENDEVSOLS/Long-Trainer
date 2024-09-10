@@ -4,6 +4,7 @@ from langchain.vectorstores import FAISS
 from langchain.retrievers import BM25Retriever, EnsembleRetriever
 import shutil
 
+
 class DocRetriever:
     """
     Advanced Document Retriever integrates retrieval techniques
@@ -23,26 +24,20 @@ class DocRetriever:
             self.document_collection = documents
             self.faiss_index = existing_faiss_index
             self.k = num_k
-            if not documents:
-                raise ValueError("Document collection is empty.")
+            if not existing_faiss_index:
+                if not documents:
+                    raise ValueError("Document collection is empty.")
 
             if not self.faiss_index:
                 # Index documents using FAISS
                 self._index_documents()
 
-            # Initialize BM25 and FAISS retrievers
-            self.bm25_retriever = BM25Retriever.from_documents(documents)
-            self.bm25_retriever.k = self.k
+            # Initialize FAISS retrievers
             if self.faiss_index:
                 self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": self.k})
             else:
                 self.faiss_retriever = None
 
-            # Create an Ensemble Retriever combining BM25 and FAISS
-            self.ensemble_retriever = EnsembleRetriever(
-                retrievers=[self.bm25_retriever, self.faiss_retriever],
-                weights=[0.5, 0.5]
-            )
         except Exception as e:
             print(f"Initialization error in AdvancedDocumentRetriever: {e}")
 
@@ -59,11 +54,11 @@ class DocRetriever:
                     self.faiss_index = FAISS.from_documents(self.document_collection[:1000], self.embedding_model)
                     for i in range(1000, len(self.document_collection), 1000):
                         end_index = min(i + 1000, len(self.document_collection))
-                        additional_index = FAISS.from_documents(self.document_collection[i:end_index], self.embedding_model)
+                        additional_index = FAISS.from_documents(self.document_collection[i:end_index],
+                                                                self.embedding_model)
                         self.faiss_index.merge_from(additional_index)
             except Exception as e:
                 print(f"Error indexing documents: {e}")
-
 
     def save_index(self, file_path):
         """
@@ -100,22 +95,13 @@ class DocRetriever:
 
             # new_index = FAISS.from_documents(new_documents, self.embedding_model)
 
-
             self.faiss_index.merge_from(new_index)
 
             # Update the document collection
             self.document_collection.extend(new_documents)
-            # Initialize BM25 and FAISS retrievers
-            self.bm25_retriever = BM25Retriever.from_documents(self.document_collection)
-            self.bm25_retriever.k = self.k
 
             self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": self.k})
 
-            # Create an Ensemble Retriever combining BM25 and FAISS
-            self.ensemble_retriever = EnsembleRetriever(
-                retrievers=[self.bm25_retriever, self.faiss_retriever],
-                weights=[0.5, 0.5]
-            )
         except Exception as e:
             print(f"Error Updating FAISS index: {e}")
 
@@ -148,6 +134,6 @@ class DocRetriever:
             A list of documents relevant to the query.
         """
         try:
-            return self.ensemble_retriever
+            return self.faiss_retriever
         except Exception as e:
             print(f"Error retrieving documents: {e}")

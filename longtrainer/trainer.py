@@ -97,7 +97,7 @@ class LongTrainer:
                 'chains': {},
                 'assistants': {},
                 'retriever': None,
-                'ensemble_retriever': None,
+                'faiss_retriever': None,
                 'conversational_chain': None,
                 'faiss_path': f'faiss_index_{bot_id}',
                 'assistant': None
@@ -366,7 +366,7 @@ class LongTrainer:
                                                                       'retriever'].faiss_index if self.bot_data[bot_id][
                                                                       'retriever'] else None, num_k=self.k)
                 self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
-                self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
+                self.bot_data[bot_id]['faiss_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
                 self.bots.update_one({'bot_id': bot_id},
                                      {'$set': {
@@ -416,7 +416,7 @@ class LongTrainer:
                 'chains': {},
                 'assistants': {},
                 'retriever': None,  # To be initialized below
-                'ensemble_retriever': None,
+                'faiss_retriever': None,
                 'conversational_chain': None,
                 'faiss_path': bot_config['faiss_path'],
                 'assistant': None,
@@ -431,17 +431,14 @@ class LongTrainer:
                 # Initialize a new FAISS index if not found
                 faiss_index = None
 
-            # Lazy load documents when needed
-            documents = self.get_documents(bot_id)
-            all_splits = self.text_splitter.split_documents(documents)
-
             # Initialize the DocRetriever with the documents fetched from MongoDB
-            self.bot_data[bot_id]['retriever'] = DocRetriever(all_splits,
+            self.bot_data[bot_id]['retriever'] = DocRetriever([],
                                                               self.embedding_model,
                                                               existing_faiss_index=faiss_index,
                                                               num_k=self.k)
-            # After initializing DocRetriever, possibly use it to update or initialize ensemble_retriever and conversational_chain as needed
-            self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id][
+
+            # After initializing DocRetriever, possibly use it to update or initialize faiss_retriever and conversational_chain as needed
+            self.bot_data[bot_id]['faiss_retriever'] = self.bot_data[bot_id][
                 'retriever'].retrieve_documents()  # Example
 
             prompt_template = bot_config.get('prompt_template', self._default_prompt_template())
@@ -449,9 +446,7 @@ class LongTrainer:
             self.bot_data[bot_id]['prompt'] = PromptTemplate(template=prompt_template,
                                                              input_variables=["context", "chat_history", "question"])
 
-            # Delete local references to documents and trigger garbage collection
-            del documents
-            del all_splits
+            # Trigger garbage collection
             gc.collect()
 
             print(f"Bot {bot_id} initialized or loaded successfully with documents from MongoDB.")
@@ -470,7 +465,7 @@ class LongTrainer:
         """
         try:
             chat_id = 'chat-' + str(uuid.uuid4())
-            bot = ChainBot(retriever=self.bot_data[bot_id]['ensemble_retriever'], llm=self.llm,
+            bot = ChainBot(retriever=self.bot_data[bot_id]['faiss_retriever'], llm=self.llm,
                            prompt=self.bot_data[bot_id]['prompt'],
                            token_limit=self.max_token_limit)
             self.bot_data[bot_id]['conversational_chain'] = bot.get_chain()
@@ -493,7 +488,7 @@ class LongTrainer:
         try:
             vision_chat_id = 'vision-' + str(uuid.uuid4())
             self.bot_data[bot_id]['assistant'] = VisionMemory(self.max_token_limit,
-                                                              self.bot_data[bot_id]['ensemble_retriever'],
+                                                              self.bot_data[bot_id]['faiss_retriever'],
                                                               prompt_template=self.bot_data[bot_id]['prompt_template'])
             self.bot_data[bot_id]['assistants'][vision_chat_id] = self.bot_data[bot_id]['assistant']
 
@@ -543,7 +538,7 @@ class LongTrainer:
                 # Use the new method to update the existing index
                 self.bot_data[bot_id]['retriever'].update_index(all_splits)
                 self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
-                self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
+                self.bot_data[bot_id]['faiss_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
             else:
                 all_splits = self.text_splitter.split_documents(updated_documents)
@@ -555,7 +550,7 @@ class LongTrainer:
                                                                   self.bot_data[bot_id]['retriever'] else None,
                                                                   num_k=self.k)
                 self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
-                self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
+                self.bot_data[bot_id]['faiss_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
             self.create_bot(bot_id, prompt_template)
 
@@ -658,7 +653,6 @@ class LongTrainer:
                 """
             else:
                 final_query = updated_query
-
 
             result = chain(final_query)
 
