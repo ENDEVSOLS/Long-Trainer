@@ -52,7 +52,7 @@ class LongTrainer:
 
         """
 
-        self.llm = llm if llm is not None else ChatOpenAI(model_name='gpt-4-turbo')
+        self.llm = llm if llm is not None else ChatOpenAI(model_name='gpt-4o-2024-08-06')
         self.embedding_model = embedding_model if embedding_model is not None else OpenAIEmbeddings()
         self.prompt_template = prompt_template if prompt_template is not None else self._default_prompt_template()
         self.prompt = PromptTemplate(template=self.prompt_template,
@@ -488,6 +488,7 @@ class LongTrainer:
         try:
             vision_chat_id = 'vision-' + str(uuid.uuid4())
             self.bot_data[bot_id]['assistant'] = VisionMemory(self.max_token_limit,
+                                                              self.llm,
                                                               self.bot_data[bot_id]['faiss_retriever'],
                                                               prompt_template=self.bot_data[bot_id]['prompt_template'])
             self.bot_data[bot_id]['assistants'][vision_chat_id] = self.bot_data[bot_id]['assistant']
@@ -736,7 +737,7 @@ class LongTrainer:
                 final_query = query
 
             prompt, doc_sources = assistant.get_answer(final_query, text)
-            vision = VisionBot(prompt)
+            vision = VisionBot(prompt, self.llm)
             vision.create_vision_bot(image_paths)
             vision_response = vision.get_response(query)
             assistant.save_chat_history(query, vision_response)

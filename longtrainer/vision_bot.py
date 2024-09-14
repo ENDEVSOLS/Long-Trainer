@@ -1,9 +1,8 @@
-import os
-from langchain.prompts import PromptTemplate
-from langchain.memory import ConversationTokenBufferMemory
-from langchain.chat_models import ChatOpenAI
-from langchain.schema.messages import HumanMessage, AIMessage
 import base64
+
+from langchain.chat_models import ChatOpenAI
+from langchain.memory import ConversationTokenBufferMemory
+from langchain.schema.messages import HumanMessage, AIMessage
 
 
 class VisionMemory:
@@ -28,7 +27,7 @@ class VisionMemory:
         get_answer(query, webdata): Retrieves the answer from the AI model for a given query, considering additional web search data.
     """
 
-    def __init__(self, token_limit, ensemble_retriever=None, prompt_template=None):
+    def __init__(self, token_limit,llm, ensemble_retriever=None, prompt_template=None):
         """
         Initializes the VisionMemory object with a token limit for the conversation buffer, an optional
         ensemble retriever for document retrieval, and an optional prompt template.
@@ -39,8 +38,12 @@ class VisionMemory:
             prompt_template (str, optional): A template for generating prompts for the AI model. Defaults to a predefined template.
         """
         try:
-            model_name = 'gpt-4-1106-preview'
-            self.llm = ChatOpenAI(model_name=model_name)
+            if llm:
+                self.llm = llm
+            else:
+                model_name = 'gpt-4o-2024-08-06'
+                self.llm = ChatOpenAI(model_name=model_name, temperature=0.5)
+
             self.memory = ConversationTokenBufferMemory(
                 llm=self.llm,
                 max_token_limit=token_limit,
@@ -154,7 +157,7 @@ class VisionBot:
         get_response(query): Generates a response from the AI model for a given query, incorporating any images that have been provided.
     """
 
-    def __init__(self, prompt_template, max_tokens=1024):
+    def __init__(self, llm, prompt_template, max_tokens=1024):
         """
         Initializes the VisionBot with a specific prompt template and token limit.
 
@@ -167,8 +170,14 @@ class VisionBot:
         The initialized instance contains a vision_chain for AI interactions, a prompt template for generating queries, and an empty list for storing human message content.
         """
         try:
-            model_name = "gpt-4-vision-preview"
-            self.vision_chain = ChatOpenAI(model=model_name, max_tokens=max_tokens)
+
+            if llm:
+                self.llm = llm
+            else:
+                model_name = 'gpt-4o-2024-08-06'
+                self.llm = ChatOpenAI(model_name=model_name, max_tokens=max_tokens, temperature=0.5)
+
+
             self.prompt_template = prompt_template  # Save prompt template to instance variable
             self.human_message_content = []  # Initialize as an empty list
         except Exception as e:

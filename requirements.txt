@@ -1,7 +1,6 @@
 openai==1.40.3
 faiss-cpu==1.8.0
 tiktoken==0.7.0
-rank_bm25==0.2.2
 wikipedia==1.4.0
 langchain==0.2.12
 youtube-transcript-api==0.6.2

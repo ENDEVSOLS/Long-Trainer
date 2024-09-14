@@ -1,8 +1,9 @@
-from langchain.embeddings import OpenAIEmbeddings
 import os
-from langchain.vectorstores import FAISS
-from langchain.retrievers import BM25Retriever, EnsembleRetriever
 import shutil
+from langchain.vectorstores import FAISS
+from langchain.storage import InMemoryStore
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.retrievers.multi_vector import MultiVectorRetriever
 
 
 class DocRetriever:
@@ -34,9 +35,22 @@ class DocRetriever:
 
             # Initialize FAISS retrievers
             if self.faiss_index:
-                self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": self.k})
+                # self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": self.k})
+
+                # The storage layer for the parent documents
+                store = InMemoryStore()
+                id_key = "doc_id"
+
+                # The retriever (empty to start)
+                self.faiss_retriever = MultiVectorRetriever(
+                    vectorstore=self.faiss_index,
+                    docstore=store,
+                    id_key=id_key,
+                )
+
             else:
                 self.faiss_retriever = None
+
 
         except Exception as e:
             print(f"Initialization error in AdvancedDocumentRetriever: {e}")
