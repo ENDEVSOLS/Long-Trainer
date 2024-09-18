@@ -172,10 +172,10 @@ class VisionBot:
         try:
 
             if llm:
-                self.llm = llm
+                self.vision_chain = llm
             else:
                 model_name = 'gpt-4o-2024-08-06'
-                self.llm = ChatOpenAI(model_name=model_name, max_tokens=max_tokens, temperature=0.5)
+                self.vision_chain = ChatOpenAI(model_name=model_name, max_tokens=max_tokens, temperature=0.5)
 
 
             self.prompt_template = prompt_template  # Save prompt template to instance variable

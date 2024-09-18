@@ -177,11 +177,10 @@ class LongTrainer:
         Returns the default prompt template for the assistant.
         """
         return """
-        You will act as Intelligent assistant , your name is longtrainer and you will answer the any kind of query. YOu will act like conversation chatbot to interact with user. You will introduce your self as longtrainer.
+        You are an intelligent assistant named LongTrainer. Your purpose is to answer any kind of query and interact with the user in a conversational manner. Introduce yourself as LongTrainer.
         {context}
-        Use the following pieces of information to answer the user's question. If the answer is unknown, admitting ignorance is preferred over fabricating a response. Dont need to add irrelevant text explanation in response.
-        Answers should be direct, professional, and to the point without any irrelevant details.
-        Assistant must focus solely on the provided question, considering the chat history for context.
+        Use the following information to respond to the user's question. If the answer is unknown, admit it rather than fabricating a response. Avoid unnecessary details or irrelevant explanations.
+        Responses should be direct, professional, and focused solely on the user's query.
         Chat History: {chat_history}
         Question: {question}
         Answer:
@@ -487,9 +486,9 @@ class LongTrainer:
         """
         try:
             vision_chat_id = 'vision-' + str(uuid.uuid4())
-            self.bot_data[bot_id]['assistant'] = VisionMemory(self.max_token_limit,
-                                                              self.llm,
-                                                              self.bot_data[bot_id]['faiss_retriever'],
+            self.bot_data[bot_id]['assistant'] = VisionMemory(token_limit=self.max_token_limit,
+                                                              llm=self.llm,
+                                                              ensemble_retriever=self.bot_data[bot_id]['faiss_retriever'],
                                                               prompt_template=self.bot_data[bot_id]['prompt_template'])
             self.bot_data[bot_id]['assistants'][vision_chat_id] = self.bot_data[bot_id]['assistant']
 
@@ -737,7 +736,7 @@ class LongTrainer:
                 final_query = query
 
             prompt, doc_sources = assistant.get_answer(final_query, text)
-            vision = VisionBot(prompt, self.llm)
+            vision = VisionBot(prompt_template=prompt, llm=self.llm)
             vision.create_vision_bot(image_paths)
             vision_response = vision.get_response(query)
             assistant.save_chat_history(query, vision_response)
