@@ -488,7 +488,8 @@ class LongTrainer:
             vision_chat_id = 'vision-' + str(uuid.uuid4())
             self.bot_data[bot_id]['assistant'] = VisionMemory(token_limit=self.max_token_limit,
                                                               llm=self.llm,
-                                                              ensemble_retriever=self.bot_data[bot_id]['faiss_retriever'],
+                                                              ensemble_retriever=self.bot_data[bot_id][
+                                                                  'faiss_retriever'],
                                                               prompt_template=self.bot_data[bot_id]['prompt_template'])
             self.bot_data[bot_id]['assistants'][vision_chat_id] = self.bot_data[bot_id]['assistant']
 
@@ -724,7 +725,9 @@ class LongTrainer:
 
             if uploaded_files:
                 file_details = "\n".join(
-                    [f"File: {file['name']} (Type: {file['type']}) URL: {file['url']}" for file in uploaded_files])
+                    [f"File: {file['name']} \n (Type: {file['type']}) \n URL: {file['url']} \n Extracted Text: {file['extracted_text']} "
+                        for file in uploaded_files])
+
                 final_query = f"""
                 Uploaded Files Content:
                 {file_details}
