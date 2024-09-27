@@ -1,6 +1,7 @@
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationTokenBufferMemory
 
+
 class ChainBot:
     def __init__(self, retriever, llm, prompt, token_limit):
         """
@@ -11,7 +12,7 @@ class ChainBot:
             retriever: The document retriever object.
             llm: Language learning model for generating responses.
             prompt (str): The initial prompt to start the conversation.
-            max_token_limit (int, optional): Maximum token limit for the conversation buffer. Defaults to 200.
+            token_limit (int, optional): Maximum token limit for the conversation buffer.
         """
         try:
             # Memory and chain setup with dynamic max token limit
@@ -32,6 +33,8 @@ class ChainBot:
                 memory=self.memory,
                 verbose=False,
             )
+
+
         except Exception as e:
             # Handle any exceptions that occur during initialization
             print(f"Error initializing ChainBot: {e}")

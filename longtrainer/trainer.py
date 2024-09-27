@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pymongo import MongoClient
 from cryptography.fernet import Fernet
 from longtrainer.loaders import DocumentLoader, TextSplitter
-from longtrainer.retrieval import DocRetriever
+from longtrainer.retrieval import DocumentRetriever
 from longtrainer.bot import ChainBot
 from longtrainer.vision_bot import VisionMemory, VisionBot
 from langchain_openai.chat_models import ChatOpenAI
@@ -31,6 +31,7 @@ class LongTrainer:
             num_k=3,
             chunk_size=2048,
             chunk_overlap=200,
+            ensemble=False,
             encrypt_chats=False,
             encryption_key=None
     ):
@@ -63,6 +64,7 @@ class LongTrainer:
         self.document_loader = DocumentLoader()
         self.text_splitter = TextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self.bot_data = {}
+        self.ensemble = ensemble
 
         # MongoDB setup
         self.client = MongoClient(mongo_endpoint)
@@ -97,7 +99,7 @@ class LongTrainer:
                 'chains': {},
                 'assistants': {},
                 'retriever': None,
-                'faiss_retriever': None,
+                'ensemble_retriever': None,
                 'conversational_chain': None,
                 'faiss_path': f'faiss_index_{bot_id}',
                 'assistant': None
@@ -177,12 +179,12 @@ class LongTrainer:
         Returns the default prompt template for the assistant.
         """
         return """
-        You are an intelligent assistant named LongTrainer. Your purpose is to answer any kind of query and interact with the user in a conversational manner. Introduce yourself as LongTrainer.
+        You are an intelligent assistant named LongTrainer. Your purpose is to answer all kind of queries and interact with the user in a helpful and conversational manner. Introduce yourself as LongTrainer.
         {context}
         Use the following information to respond to the user's question. If the answer is unknown, admit it rather than fabricating a response. Avoid unnecessary details or irrelevant explanations.
         Responses should be direct, professional, and focused solely on the user's query.
         Chat History: {chat_history}
-        Question: {question}
+        Question: {input}
         Answer:
         """
 
@@ -220,7 +222,7 @@ class LongTrainer:
             print(f"Error loading documents for bot {bot_id}: {e}")
             return []
 
-    def add_document_from_path(self, path, bot_id, use_unstructured=True):
+    def add_document_from_path(self, path, bot_id, use_unstructured=False):
         """
         Loads and adds documents from a specified file path.
 
@@ -360,12 +362,18 @@ class LongTrainer:
                 documents = self.get_documents(bot_id)
                 all_splits = self.text_splitter.split_documents(documents)
 
-                self.bot_data[bot_id]['retriever'] = DocRetriever(all_splits, self.embedding_model,
-                                                                  existing_faiss_index=self.bot_data[bot_id][
-                                                                      'retriever'].faiss_index if self.bot_data[bot_id][
-                                                                      'retriever'] else None, num_k=self.k)
+                self.bot_data[bot_id]['retriever'] = DocumentRetriever(
+                    documents=all_splits,
+                    embedding_model=self.embedding_model,
+                    llm=self.llm,
+                    ensemble=self.ensemble,
+                    existing_faiss_index=self.bot_data[bot_id][
+                        'retriever'].faiss_index if self.bot_data[bot_id][
+                        'retriever'] else None,
+                    num_k=self.k
+                )
                 self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
-                self.bot_data[bot_id]['faiss_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
+                self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
                 self.bots.update_one({'bot_id': bot_id},
                                      {'$set': {
@@ -415,12 +423,17 @@ class LongTrainer:
                 'chains': {},
                 'assistants': {},
                 'retriever': None,  # To be initialized below
-                'faiss_retriever': None,
+                'ensemble_retriever': None,
                 'conversational_chain': None,
                 'faiss_path': bot_config['faiss_path'],
                 'assistant': None,
                 'prompt_template': bot_config['prompt_template'],
             }
+
+            prompt_template = bot_config.get('prompt_template', self._default_prompt_template())
+            self.bot_data[bot_id]['prompt_template'] = prompt_template
+            self.bot_data[bot_id]['prompt'] = PromptTemplate(template=prompt_template,
+                                                             input_variables=["context", "chat_history", "question"])
 
             faiss_path = self.bot_data[bot_id]['faiss_path']
             if os.path.exists(faiss_path):
@@ -431,19 +444,18 @@ class LongTrainer:
                 faiss_index = None
 
             # Initialize the DocRetriever with the documents fetched from MongoDB
-            self.bot_data[bot_id]['retriever'] = DocRetriever([],
-                                                              self.embedding_model,
-                                                              existing_faiss_index=faiss_index,
-                                                              num_k=self.k)
+            self.bot_data[bot_id]['retriever'] = DocumentRetriever(
+                documents=[],
+                embedding_model=self.embedding_model,
+                llm=self.llm,
+                ensemble=self.ensemble,
+                existing_faiss_index=faiss_index,
+                num_k=self.k
+            )
 
-            # After initializing DocRetriever, possibly use it to update or initialize faiss_retriever and conversational_chain as needed
-            self.bot_data[bot_id]['faiss_retriever'] = self.bot_data[bot_id][
+            # After initializing DocRetriever, possibly use it to update or initialize ensemble_retriever and conversational_chain as needed
+            self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id][
                 'retriever'].retrieve_documents()  # Example
-
-            prompt_template = bot_config.get('prompt_template', self._default_prompt_template())
-            self.bot_data[bot_id]['prompt_template'] = prompt_template
-            self.bot_data[bot_id]['prompt'] = PromptTemplate(template=prompt_template,
-                                                             input_variables=["context", "chat_history", "question"])
 
             # Trigger garbage collection
             gc.collect()
@@ -464,7 +476,7 @@ class LongTrainer:
         """
         try:
             chat_id = 'chat-' + str(uuid.uuid4())
-            bot = ChainBot(retriever=self.bot_data[bot_id]['faiss_retriever'], llm=self.llm,
+            bot = ChainBot(retriever=self.bot_data[bot_id]['ensemble_retriever'], llm=self.llm,
                            prompt=self.bot_data[bot_id]['prompt'],
                            token_limit=self.max_token_limit)
             self.bot_data[bot_id]['conversational_chain'] = bot.get_chain()
@@ -489,7 +501,7 @@ class LongTrainer:
             self.bot_data[bot_id]['assistant'] = VisionMemory(token_limit=self.max_token_limit,
                                                               llm=self.llm,
                                                               ensemble_retriever=self.bot_data[bot_id][
-                                                                  'faiss_retriever'],
+                                                                  'ensemble_retriever'],
                                                               prompt_template=self.bot_data[bot_id]['prompt_template'])
             self.bot_data[bot_id]['assistants'][vision_chat_id] = self.bot_data[bot_id]['assistant']
 
@@ -498,7 +510,8 @@ class LongTrainer:
             print(f"Error creating new Vision Chat: {e}")
             return None
 
-    def update_chatbot(self, paths, bot_id, links=None, search_query=None, prompt_template=None, use_unstructured=True):
+    def update_chatbot(self, paths, bot_id, links=None, search_query=None, prompt_template=None,
+                       use_unstructured=False):
 
         """
         Updates the chatbot with new documents from given paths, links, and a search query.
@@ -539,19 +552,24 @@ class LongTrainer:
                 # Use the new method to update the existing index
                 self.bot_data[bot_id]['retriever'].update_index(all_splits)
                 self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
-                self.bot_data[bot_id]['faiss_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
+                self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
             else:
                 all_splits = self.text_splitter.split_documents(updated_documents)
 
                 # If no retriever or FAISS index, create a new one
-                self.bot_data[bot_id]['retriever'] = DocRetriever(all_splits, self.embedding_model,
-                                                                  existing_faiss_index=self.bot_data[bot_id][
-                                                                      'retriever'].faiss_index if
-                                                                  self.bot_data[bot_id]['retriever'] else None,
-                                                                  num_k=self.k)
+                self.bot_data[bot_id]['retriever'] = DocumentRetriever(
+                    documents=all_splits,
+                    embedding_model=self.embedding_model,
+                    llm=self.llm,
+                    ensemble=self.ensemble,
+                    existing_faiss_index=self.bot_data[bot_id][
+                        'retriever'].faiss_index if
+                    self.bot_data[bot_id]['retriever'] else None,
+                    num_k=self.k
+                )
                 self.bot_data[bot_id]['retriever'].save_index(file_path=self.bot_data[bot_id]['faiss_path'])
-                self.bot_data[bot_id]['faiss_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
+                self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id]['retriever'].retrieve_documents()
 
             self.create_bot(bot_id, prompt_template)
 
@@ -655,8 +673,8 @@ class LongTrainer:
             else:
                 final_query = updated_query
 
-            result = chain(final_query)
-
+            # result = chain(final_query)
+            result = chain.invoke(final_query)
             answer = result.get('answer')
 
             if self.encrypt_chats:
@@ -725,7 +743,8 @@ class LongTrainer:
 
             if uploaded_files:
                 file_details = "\n".join(
-                    [f"File: {file['name']} \n (Type: {file['type']}) \n URL: {file['url']} \n Extracted Text: {file['extracted_text']} "
+                    [
+                        f"File: {file['name']} \n (Type: {file['type']}) \n URL: {file['url']} \n Extracted Text: {file['extracted_text']} "
                         for file in uploaded_files])
 
                 final_query = f"""

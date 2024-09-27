@@ -1,6 +1,5 @@
 import base64
-
-from langchain.chat_models import ChatOpenAI
+from langchain_openai.chat_models import ChatOpenAI
 from langchain.memory import ConversationTokenBufferMemory
 from langchain.schema.messages import HumanMessage, AIMessage
 
@@ -27,7 +26,7 @@ class VisionMemory:
         get_answer(query, webdata): Retrieves the answer from the AI model for a given query, considering additional web search data.
     """
 
-    def __init__(self, token_limit,llm, ensemble_retriever=None, prompt_template=None):
+    def __init__(self, token_limit, llm, ensemble_retriever=None, prompt_template=None):
         """
         Initializes the VisionMemory object with a token limit for the conversation buffer, an optional
         ensemble retriever for document retrieval, and an optional prompt template.
@@ -53,7 +52,7 @@ class VisionMemory:
             )
             self.chat_history = []
             self.prompt_template = prompt_template if prompt_template else '''
-            You will act as Intelligent assistant and your name is longtrainer and you will asnwer the any kind of query. YOu will act like conversation chatbot to interact with user. You will introduce your self as longtrainer.
+            You will act as Intelligent assistant and your name is longtrainer and you will answer the all kind of queries. 
             {context}
             Your task is to answer the query with accurate answer using the chat history context.
             If the answer is unknown, admitting ignorance is preferred over fabricating a response. Dont need to add irrelevant text explanation in response.
@@ -176,7 +175,6 @@ class VisionBot:
             else:
                 model_name = 'gpt-4o-2024-08-06'
                 self.vision_chain = ChatOpenAI(model_name=model_name, max_tokens=max_tokens, temperature=0.5)
-
 
             self.prompt_template = prompt_template  # Save prompt template to instance variable
             self.human_message_content = []  # Initialize as an empty list

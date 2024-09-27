@@ -1,12 +1,14 @@
-from langchain.document_loaders import (CSVLoader, WikipediaLoader, UnstructuredURLLoader,
-                                        YoutubeLoader, PyPDFLoader, BSHTMLLoader,
-                                        Docx2txtLoader, UnstructuredMarkdownLoader)
+from langchain_community.document_loaders import (
+    CSVLoader, WikipediaLoader, UnstructuredURLLoader,
+    YoutubeLoader, PyPDFLoader, BSHTMLLoader,
+    Docx2txtLoader, UnstructuredMarkdownLoader
+)
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-
 from langchain_unstructured import UnstructuredLoader
 
 
 class DocumentLoader:
+
     def load_unstructured(self, path):
         """
         Load data from a file at the specified path:
@@ -191,6 +193,7 @@ class DocumentLoader:
             return data
         except Exception as e:
             print(f"Error loading DOCX: {e}")
+
 
 class TextSplitter:
     def __init__(self, chunk_size=1024, chunk_overlap=100):

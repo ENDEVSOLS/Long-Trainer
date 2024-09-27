@@ -1,18 +1,20 @@
 import os
 import shutil
-from langchain.vectorstores import FAISS
-from langchain.storage import InMemoryStore
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.retrievers.multi_vector import MultiVectorRetriever
+from longtrainer.utils import LineListOutputParser
+from langchain.retrievers import EnsembleRetriever
+from langchain.retrievers.multi_query import MultiQueryRetriever
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_core.prompts import PromptTemplate
 
 
-class DocRetriever:
+class DocumentRetriever:
     """
     Advanced Document Retriever integrates retrieval techniques
     to efficiently retrieve documents based on provided queries.
     """
 
-    def __init__(self, documents, embedding_model, existing_faiss_index=None, num_k=3):
+    def __init__(self, documents, embedding_model, llm, ensemble=False, existing_faiss_index=None, num_k=3):
         """
         Initializes the AdvancedDocumentRetriever with a set of documents and an embedding model.
 
@@ -25,6 +27,8 @@ class DocRetriever:
             self.document_collection = documents
             self.faiss_index = existing_faiss_index
             self.k = num_k
+            self.ensemble = ensemble
+
             if not existing_faiss_index:
                 if not documents:
                     raise ValueError("Document collection is empty.")
@@ -35,18 +39,27 @@ class DocRetriever:
 
             # Initialize FAISS retrievers
             if self.faiss_index:
-                # self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": self.k})
+                self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": self.k})
 
-                # The storage layer for the parent documents
-                store = InMemoryStore()
-                id_key = "doc_id"
+                if self.ensemble:
+                    self.output_parser = LineListOutputParser()
+                    QUERY_PROMPT = PromptTemplate(
+                        input_variables=["question"],
+                        template="""You are an AI language model assistant. Your task is to generate five 
+                        different versions of the given user question to retrieve relevant documents from a vector 
+                        database. By generating multiple perspectives on the user question, your goal is to help
+                        the user overcome some of the limitations of the distance-based similarity search. 
+                        Provide these alternative questions separated by newlines.
+                        Original question: {question}""",
+                    )
+                    self.llm_chain = QUERY_PROMPT | llm | self.output_parser
 
-                # The retriever (empty to start)
-                self.faiss_retriever = MultiVectorRetriever(
-                    vectorstore=self.faiss_index,
-                    docstore=store,
-                    id_key=id_key,
-                )
+                    self.multi_query_retriever = MultiQueryRetriever(
+                        retriever=self.faiss_retriever, llm_chain=self.llm_chain, parser_key="lines"
+                    )
+                    self.ensemble_retriever = EnsembleRetriever(
+                        retrievers=[self.faiss_retriever, self.multi_query_retriever], weights=[0.5, 0.5]
+                    )
 
             else:
                 self.faiss_retriever = None
@@ -148,6 +161,9 @@ class DocRetriever:
             A list of documents relevant to the query.
         """
         try:
-            return self.faiss_retriever
+            if self.ensemble:
+                return self.ensemble_retriever
+            else:
+                return self.faiss_retriever
         except Exception as e:
             print(f"Error retrieving documents: {e}")
