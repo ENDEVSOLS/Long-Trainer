@@ -610,6 +610,26 @@ class LongTrainer:
         except Exception as e:
             print(f"Error Decrypting Documents: {e}")
 
+    def invoke_vectorstore(self, bot_id, query):
+        """
+        Retrieves a list of Retrieved Documents from VectorDB
+
+        Args:
+            query (str): The query string for the assistant.
+            bot_id (str): The unique identifier for the bot.
+
+        Returns:
+            tuple: A List containing the Similar Documents
+
+        Raises:
+            Exception: If the bot ID or VectorDB is not found in the system.
+        """
+        try:
+            results = self.bot_data[bot_id]['ensemble_retriever'].invoke(query)
+            return results
+        except Exception as e:
+            print(f"Error Invoking VectorStore: {e}")
+
     def get_response(self, query, bot_id, chat_id, uploaded_files=None, web_search=False):
         """
         Retrieves a response from the conversational AI assistant for a given query, potentially
