@@ -65,7 +65,7 @@ class VisionMemory:
             '''
             self.ensemble_retriever = ensemble_retriever
         except Exception as e:
-            print(f"VisionMemory Initialization error: {e}")
+            print(f"[ERROR] VisionMemory Initialization error: {e}")
 
     def save_chat_history(self, query, answer):
         """
@@ -81,7 +81,7 @@ class VisionMemory:
             self.chat_history.append([query, answer])
             self.memory.save_context({"input": query}, {"answer": answer})
         except Exception as e:
-            print(f"VisionMemory Error saving chat history: {e}")
+            print(f"[ERROR] VisionMemory Error saving chat history: {e}")
 
     def generate_prompt(self, query, additional_context):
         """
@@ -103,7 +103,7 @@ class VisionMemory:
                 context=f"you will answer the query from provided context: {additional_context}",
                 chat_history=memory_history, question=query)
         except Exception as e:
-            print(f"VisionMemory Error Generating Prompt: {e}")
+            print(f"[ERROR] VisionMemory Error Generating Prompt: {e}")
 
     def get_answer(self, query, webdata):
         """
@@ -121,7 +121,7 @@ class VisionMemory:
         """
         try:
             unique_sources = set()
-            docs = self.ensemble_retriever.get_relevant_documents(query)
+            docs = self.ensemble_retriever.invoke(query)
             for doc in docs:
                 # Accessing 'metadata' as an attribute of the 'Document' object
                 source = doc.metadata.get('source') if hasattr(doc, 'metadata') and isinstance(doc.metadata,
@@ -133,7 +133,16 @@ class VisionMemory:
             prompt = self.generate_prompt(updated_query, docs)
             return prompt, list(unique_sources)
         except Exception as e:
-            print(f"VisionMemory Error getting Answer: {e}")
+            print(f"[ERROR] VisionMemory Error getting Answer: {e}")
+
+    def get_memory(self):
+        """
+        Retrieve the conversation memory.
+
+        Returns:
+            The ConversationTokenBufferMemory instance.
+        """
+        return self.memory
 
 
 class VisionBot:
@@ -179,7 +188,7 @@ class VisionBot:
             self.prompt_template = prompt_template  # Save prompt template to instance variable
             self.human_message_content = []  # Initialize as an empty list
         except Exception as e:
-            print(f"VisionBot Initialization error: {e}")
+            print(f"[ERROR] VisionBot Initialization error: {e}")
 
     def encode_image(self, image_path):
         """
@@ -197,7 +206,7 @@ class VisionBot:
             with open(image_path, "rb") as image_file:
                 return base64.b64encode(image_file.read()).decode('utf-8')
         except Exception as e:
-            print(f"VisionBot Image Encoding error: {e}")
+            print(f"[ERROR] VisionBot Image Encoding error: {e}")
 
     def create_vision_bot(self, image_files):
         """
@@ -217,7 +226,7 @@ class VisionBot:
                 }
                 self.human_message_content.append(image_snippet)
         except Exception as e:
-            print(f"VisionBot Error Creating Bot: {e}")
+            print(f"[ERROR] VisionBot Error Creating Bot: {e}")
 
     def get_response(self, query):
         """
@@ -244,4 +253,4 @@ class VisionBot:
             )
             return msg.content
         except Exception as e:
-            print(f"VisionBot Error getting Response: {e}")
+            print(f"[ERROR] VisionBot Error getting Response: {e}")

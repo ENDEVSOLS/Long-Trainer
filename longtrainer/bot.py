@@ -24,6 +24,7 @@ class ChainBot:
                 output_key='answer'
             )
 
+
             self.chain = ConversationalRetrievalChain.from_llm(
                 llm=llm,
                 retriever=retriever,
@@ -37,7 +38,7 @@ class ChainBot:
 
         except Exception as e:
             # Handle any exceptions that occur during initialization
-            print(f"Error initializing ChainBot: {e}")
+            print(f"[ERROR] Error initializing ChainBot: {e}")
 
     def get_chain(self):
         """
@@ -47,3 +48,12 @@ class ChainBot:
             The ConversationalRetrievalChain instance.
         """
         return self.chain
+
+    def get_memory(self):
+        """
+        Retrieve the conversation memory.
+
+        Returns:
+            The ConversationTokenBufferMemory instance.
+        """
+        return self.memory

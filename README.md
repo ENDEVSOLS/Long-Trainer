@@ -144,7 +144,7 @@ import os
 os.environ["OPENAI_API_KEY"] = "sk-"
 
 # Initialize LongTrainer
-trainer = LongTrainer(mongo_endpoint='mongodb://localhost:27017/', encrypt_chats=True)
+trainer = LongTrainer(mongo_endpoint='mongodb://localhost:27017/', ensemble=True, encrypt_chats=True)
 bot_id = trainer.initialize_bot_id()
 print('Bot ID: ', bot_id)
 

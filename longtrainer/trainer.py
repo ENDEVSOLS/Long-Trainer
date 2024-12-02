@@ -97,6 +97,7 @@ class LongTrainer:
             bot_id = 'bot-' + str(uuid.uuid4())
             self.bot_data[bot_id] = {
                 'chains': {},
+                # 'memories': {},
                 'assistants': {},
                 'retriever': None,
                 'ensemble_retriever': None,
@@ -110,7 +111,7 @@ class LongTrainer:
             return bot_id
 
         except Exception as e:
-            print(f"Error Initializing Bot: {e}")
+            print(f"[ERROR] Error Initializing Bot: {e}")
 
     def web_searching(self, query):
         """
@@ -130,7 +131,7 @@ class LongTrainer:
             text = self.search.run(query)
             return text
         except Exception as e:
-            print(f"Error Web Searching: {e}")
+            print(f"[ERROR] Error Web Searching: {e}")
 
     def get_websearch_links(self, text):
         """
@@ -172,7 +173,7 @@ class LongTrainer:
             return results
 
         except Exception as e:
-            print(f"Error getting Web Links: {e}")
+            print(f"[ERROR] Error getting Web Links: {e}")
 
     def _default_prompt_template(self):
         """
@@ -184,7 +185,7 @@ class LongTrainer:
         Use the following information to respond to the user's question. If the answer is unknown, admit it rather than fabricating a response. Avoid unnecessary details or irrelevant explanations.
         Responses should be direct, professional, and focused solely on the user's query.
         Chat History: {chat_history}
-        Question: {input}
+        Question: {question}
         Answer:
         """
 
@@ -202,7 +203,7 @@ class LongTrainer:
                                      'prompt_template': self.bot_data[bot_id]['prompt_template'],
                                  }})
         except Exception as e:
-            print(f"Error Setting Prompt Template: {e}")
+            print(f"[ERROR] Error Setting Prompt Template: {e}")
 
     def get_documents(self, bot_id):
         """
@@ -219,7 +220,7 @@ class LongTrainer:
                          self.documents_collection.find({'bot_id': bot_id})]
             return documents
         except Exception as e:
-            print(f"Error loading documents for bot {bot_id}: {e}")
+            print(f"[ERROR] Error loading documents for bot {bot_id}: {e}")
             return []
 
     def add_document_from_path(self, path, bot_id, use_unstructured=False):
@@ -261,7 +262,7 @@ class LongTrainer:
                 del documents
                 gc.collect()
         except Exception as e:
-            print(f"Error adding document from path: {e}")
+            print(f"[ERROR] Error adding document from path: {e}")
 
     def add_document_from_link(self, links, bot_id):
         """
@@ -287,7 +288,7 @@ class LongTrainer:
                     del documents
                     gc.collect()
         except Exception as e:
-            print(f"Error adding document from link: {e}")
+            print(f"[ERROR] Error adding document from link: {e}")
 
     def add_document_from_query(self, search_query, bot_id):
         """
@@ -310,7 +311,7 @@ class LongTrainer:
                 gc.collect()
 
         except Exception as e:
-            print(f"Error adding document from query: {e}")
+            print(f"[ERROR] Error adding document from query: {e}")
 
     def pass_documents(self, documents, bot_id):
         """
@@ -331,7 +332,7 @@ class LongTrainer:
                 gc.collect()
 
         except Exception as e:
-            print(f"Error adding documents: {e}")
+            print(f"[ERROR] Error adding documents: {e}")
 
     def create_bot(self, bot_id, prompt_template=None):
         """
@@ -385,7 +386,7 @@ class LongTrainer:
                 gc.collect()
 
         except Exception as e:
-            print(f"Error creating bot: {e}")
+            print(f"[ERROR] Error creating bot: {e}")
             return None
 
     def load_bot(self, bot_id):
@@ -403,7 +404,7 @@ class LongTrainer:
             None: This method initializes or updates the bot's components in the system.
         """
         if not bot_id:
-            raise ValueError("Bot ID must be provided.")
+            raise ValueError("[ERROR] Bot ID must be provided.")
 
         try:
             bot_config = self.bots.find_one({"bot_id": bot_id})
@@ -421,6 +422,7 @@ class LongTrainer:
             # Ensure all necessary keys in self.bot_data for bot initialization or loading
             self.bot_data[bot_id] = {
                 'chains': {},
+                # 'memories':{},
                 'assistants': {},
                 'retriever': None,  # To be initialized below
                 'ensemble_retriever': None,
@@ -457,12 +459,50 @@ class LongTrainer:
             self.bot_data[bot_id]['ensemble_retriever'] = self.bot_data[bot_id][
                 'retriever'].retrieve_documents()  # Example
 
+            load_chat_history = self.list_chats(bot_id)
+
+            print("[INFO] Loading Previous Chats...")
+            for chat_id in load_chat_history['chat_ids']:
+                data = self.get_chat_by_id(chat_id, "oldest")
+
+                bot = ChainBot(retriever=self.bot_data[bot_id]['ensemble_retriever'], llm=self.llm,
+                               prompt=self.bot_data[bot_id]['prompt'],
+                               token_limit=self.max_token_limit)
+                for item in data:
+                    bot.memory.save_context(
+                        inputs={"input": str(item['question'])},
+                        outputs={"answer": str(item['answer'])},
+                    )
+                self.bot_data[bot_id]['conversational_chain'] = bot.get_chain()
+                # print("History:", bot.get_memory())
+                self.bot_data[bot_id]['chains'][chat_id] = self.bot_data[bot_id]['conversational_chain']
+
+            for vision_chat_id in load_chat_history['vision_chat_ids']:
+                data = self.get_vision_chat_by_id(vision_chat_id, "oldest")
+
+                self.bot_data[bot_id]['assistant'] = VisionMemory(token_limit=self.max_token_limit,
+                                                                  llm=self.llm,
+                                                                  ensemble_retriever=self.bot_data[bot_id][
+                                                                      'ensemble_retriever'],
+                                                                  prompt_template=self.bot_data[bot_id][
+                                                                      'prompt_template'])
+
+                for item in data:
+                    self.bot_data[bot_id]['assistant'].memory.save_context(
+                        inputs={"input": str(item['question'])},
+                        outputs={"answer": str(item['response'])},
+                    )
+                # print("History:", self.bot_data[bot_id]['assistant'].get_memory())
+                self.bot_data[bot_id]['assistants'][vision_chat_id] = self.bot_data[bot_id]['assistant']
+
+            print("[INFO] Previous Chats Loaded Successfully...")
+
             # Trigger garbage collection
             gc.collect()
 
-            print(f"Bot {bot_id} initialized or loaded successfully with documents from MongoDB.")
+            print(f"[INFO] Bot {bot_id} initialized or loaded successfully with documents from MongoDB.")
         except Exception as e:
-            print(f"Error loading bot by ID: {e}")
+            print(f"[ERROR] Error loading bot by ID: {e}")
 
     def new_chat(self, bot_id):
         """
@@ -480,10 +520,11 @@ class LongTrainer:
                            prompt=self.bot_data[bot_id]['prompt'],
                            token_limit=self.max_token_limit)
             self.bot_data[bot_id]['conversational_chain'] = bot.get_chain()
+            # self.bot_data[bot_id]['memories'][chat_id] = bot.get_memory()
             self.bot_data[bot_id]['chains'][chat_id] = self.bot_data[bot_id]['conversational_chain']
             return chat_id
         except Exception as e:
-            print(f"Error creating New Chat: {e}")
+            print(f"[ERROR] Error creating New Chat: {e}")
             return None
 
     def new_vision_chat(self, bot_id):
@@ -503,11 +544,12 @@ class LongTrainer:
                                                               ensemble_retriever=self.bot_data[bot_id][
                                                                   'ensemble_retriever'],
                                                               prompt_template=self.bot_data[bot_id]['prompt_template'])
+            # self.bot_data[bot_id]['vision_memories'][vision_chat_id] = self.bot_data[bot_id]['assistant'].get_memory()
             self.bot_data[bot_id]['assistants'][vision_chat_id] = self.bot_data[bot_id]['assistant']
 
             return vision_chat_id
         except Exception as e:
-            print(f"Error creating new Vision Chat: {e}")
+            print(f"[ERROR] Error creating new Vision Chat: {e}")
             return None
 
     def update_chatbot(self, paths, bot_id, links=None, search_query=None, prompt_template=None,
@@ -577,7 +619,7 @@ class LongTrainer:
             del updated_documents, new_docs, all_splits
             gc.collect()
         except Exception as e:
-            print(f"Error updating chatbot: {e}")
+            print(f"[ERROR] Error updating chatbot: {e}")
             gc.collect()
 
     def _encrypt_data(self, data):
@@ -593,7 +635,7 @@ class LongTrainer:
         try:
             return self.fernet.encrypt(data.encode()).decode()
         except Exception as e:
-            print(f"Error Encrypting Documents: {e}")
+            print(f"[ERROR] Error Encrypting Documents: {e}")
 
     def _decrypt_data(self, data):
         '''
@@ -608,7 +650,7 @@ class LongTrainer:
         try:
             return self.fernet.decrypt(data.encode()).decode()
         except Exception as e:
-            print(f"Error Decrypting Documents: {e}")
+            print(f"[ERROR] Error Decrypting Documents: {e}")
 
     def invoke_vectorstore(self, bot_id, query):
         """
@@ -628,7 +670,7 @@ class LongTrainer:
             results = self.bot_data[bot_id]['ensemble_retriever'].invoke(query)
             return results
         except Exception as e:
-            print(f"Error Invoking VectorStore: {e}")
+            print(f"[ERROR] Error Invoking VectorStore: {e}")
 
     def get_response(self, query, bot_id, chat_id, uploaded_files=None, web_search=False):
         """
@@ -724,7 +766,7 @@ class LongTrainer:
 
             return answer, web_source
         except Exception as e:
-            print(f"Error getting Bot Response: {e}")
+            print(f"[ERROR] Error getting Bot Response: {e}")
 
     def get_vision_response(self, query, image_paths, bot_id, vision_chat_id, uploaded_files=None, web_search=False):
         """
@@ -812,7 +854,7 @@ class LongTrainer:
 
             return vision_response, web_source
         except Exception as e:
-            print(f"Error getting vision response: {e}")
+            print(f"[ERROR] Error getting vision response: {e}")
             return None
 
     def delete_chatbot(self, bot_id):
@@ -843,70 +885,69 @@ class LongTrainer:
                 shutil.rmtree(data_folder_path)
                 print(f"Deleted data folder for bot ID {bot_id}.")
             except Exception as e:
-                print(f"Error deleting data folder for bot ID {bot_id}: {e}")
+                print(f"[ERROR] Error deleting data folder for bot ID {bot_id}: {e}")
         else:
-            raise Exception(f"Bot ID {bot_id} not found")
+            raise Exception(f"[ERROR] Bot ID {bot_id} not found")
 
     def list_chats(self, bot_id):
         """
-        Lists unique chats for a specified bot, showing only the start of the first prompt for each chat.
-
-        This method retrieves a list of unique chat sessions associated with the given bot_id from the MongoDB database.
-        It displays the chat ID and the first few words of the first question part of each unique chat session. If encryption
-        is enabled for the chats, it decrypts the questions before displaying them.
+        Lists unique chat and vision chat IDs for a specified bot.
 
         Args:
-            bot_id (str): The unique identifier of the bot for which the chat list is requested.
+            bot_id (str): The unique identifier of the bot for which the chat and vision chat IDs are requested.
 
         Returns:
-            None: This method prints the chat ID and a snippet of the first question of each unique chat session directly to the console.
-                  It does not return any value.
-
-        Note:
-            The method assumes each chat session has a unique chat_id and fetches the first question to give an overview.
-            The chat content is truncated for brevity in the listing.
+            dict: A dictionary containing two lists:
+                  - "chat_ids": List of unique chat IDs.
+                  - "vision_chat_ids": List of unique vision chat IDs.
         """
         try:
-            unique_chats = self.chats.aggregate([
-                {"$match": {"bot_id": bot_id}},
-                {"$group": {"_id": "$chat_id", "first_question": {"$first": "$question"}}}
-            ])
+            # Fetch unique chat IDs from the `chats` collection
+            chat_ids = list(
+                self.chats.distinct("chat_id", {"bot_id": bot_id})
+            )
 
-            for chat in unique_chats:
-                chat_id = chat["_id"]
-                question = chat["first_question"]
-                if self.encrypt_chats:
-                    question = self._decrypt_data(question)
-                print(f"Chat ID: {chat_id}, Question: {' '.join(question.split()[:5])}...")
+            # Fetch unique vision chat IDs from the `vision_chats` collection
+            vision_chat_ids = list(
+                self.vision_chats.distinct("vision_chat_id", {"bot_id": bot_id})
+            )
+
+            return {
+                "chat_ids": chat_ids,
+                "vision_chat_ids": vision_chat_ids,
+            }
+
         except Exception as e:
-            print(f"Error Getting Chats: {e}")
+            print(f"[ERROR] Error Getting Chat and Vision Chat IDs: {e}")
+            return {
+                "chat_ids": [],
+                "vision_chat_ids": [],
+            }
 
-    def get_chat_by_id(self, chat_id):
+    def get_chat_by_id(self, chat_id, order="newest"):
         """
         Retrieves the full conversation details belonging to a specific chat using its unique chat ID.
 
-        This method fetches all chat data related to the given chat_id from the MongoDB database. If the chats are encrypted,
-        it decrypts the questions, answers, and web sources before compiling them into a single response object.
-        If no chats are found with the given chat_id, it returns None.
-
         Args:
             chat_id (str): The unique identifier of the chat session to be retrieved.
+            order (str): The order of the results, either "newest" or "oldest". Defaults to "newest".
 
         Returns:
             list: A list of dictionaries, each containing the details of a part of the chat session,
-                  including 'question', 'answer', and 'web_sources', if found. Each element is decrypted if encryption is enabled.
-            None: If no chats are found with the given chat_id.
-
-        Note:
-            If 'encrypt_chats' is set to True, the method decrypts the data before returning it. The decryption is applied to
-            'question', 'answer', and each element in the 'web_sources' list for every part of the conversation.
+                  including 'question', 'answer', and 'web_sources', if found. Each element is decrypted
+                  if encryption is enabled. Returns None if no chats are found.
         """
         try:
-            chat_data = list(self.chats.find({"chat_id": chat_id}))
+            # Determine sorting order
+            sort_order = -1 if order == "newest" else 1
+
+            # Fetch chat data with sorting
+            chat_data = list(self.chats.find({"chat_id": chat_id}).sort("timestamp", sort_order))
 
             if not chat_data:
                 return None
 
+            # Decrypt data if necessary
             for chat in chat_data:
                 if self.encrypt_chats:
                     chat["question"] = self._decrypt_data(chat["question"])
@@ -916,7 +957,45 @@ class LongTrainer:
 
             return chat_data
         except Exception as e:
-            print(f"Error Getting Chat with ID: {chat_id} : {e}")
+            print(f"[ERROR] Error Getting Chat with ID: {chat_id} : {e}")
+            return None
+
+    def get_vision_chat_by_id(self, vision_chat_id, order="newest"):
+        """
+        Retrieves the full conversation details belonging to a specific vision chat using its unique vision_chat_id.
+
+        Args:
+            vision_chat_id (str): The unique identifier of the vision chat session to be retrieved.
+            order (str): The order of the results, either "newest" or "oldest". Defaults to "newest".
+
+        Returns:
+            list: A list of dictionaries, each containing the details of a part of the vision chat session,
+                  including 'question', 'response', 'web_sources', and 'image_path', if found. Returns None if no
+                  vision chats are found.
+        """
+        try:
+            # Determine sorting order
+            sort_order = -1 if order == "newest" else 1
+
+            # Fetch vision chat data with sorting
+            vision_chat_data = list(
+                self.vision_chats.find({"vision_chat_id": vision_chat_id}).sort("timestamp", sort_order))
+
+            if not vision_chat_data:
+                return None
+
+            # Decrypt data if necessary
+            for chat in vision_chat_data:
+                if self.encrypt_chats:
+                    chat["question"] = self._decrypt_data(chat["question"])
+                    chat["response"] = self._decrypt_data(chat["response"])
+                    if "web_sources" in chat and chat["web_sources"]:
+                        chat["web_sources"] = [self._decrypt_data(source) for source in chat["web_sources"]]
+
+            return vision_chat_data
+        except Exception as e:
+            print(f"[ERROR] Error Getting Vision Chat with ID: {vision_chat_id} : {e}")
+            return None
 
     def _export_chats_to_csv(self, dataframe, bot_id):
         """
@@ -930,7 +1009,7 @@ class LongTrainer:
             dataframe.to_csv(csv_path, index=False)
             return csv_path
         except Exception as e:
-            print(f"Error exporting Chats to csv: {e}")
+            print(f"[ERROR] Error exporting Chats to csv: {e}")
 
     def train_chats(self, bot_id):
         """
@@ -974,4 +1053,4 @@ class LongTrainer:
 
             return {"message": "Trainer updated with new chat history.", "csv_path": csv_path}
         except Exception as e:
-            print(f"Error training Bot on Chats: {e}")
+            print(f"[ERROR] Error training Bot on Chats: {e}")

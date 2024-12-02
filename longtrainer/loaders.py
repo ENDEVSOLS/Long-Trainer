@@ -31,7 +31,7 @@ class DocumentLoader:
             data = loader.load()
             return data
         except Exception as e:
-            print(f"Error loading Unstructured: {e}")
+            print(f"[ERROR] Error loading Unstructured: {e}")
 
     def load_csv(self, path):
         """
@@ -51,7 +51,7 @@ class DocumentLoader:
             data = loader.load()
             return data
         except Exception as e:
-            print(f"Error loading CSV: {e}")
+            print(f"[ERROR] Error loading CSV: {e}")
 
     def wikipedia_query(self, search_query):
         """
@@ -70,7 +70,7 @@ class DocumentLoader:
             data = WikipediaLoader(query=search_query, load_max_docs=2).load()
             return data
         except Exception as e:
-            print(f"Error querying Wikipedia: {e}")
+            print(f"[ERROR] Error querying Wikipedia: {e}")
 
     def load_urls(self, urls):
         """
@@ -90,7 +90,7 @@ class DocumentLoader:
             data = loader.load()
             return data
         except Exception as e:
-            print(f"Error loading URLs: {e}")
+            print(f"[ERROR] Error loading URLs: {e}")
 
     def load_YouTubeVideo(self, urls):
         """
@@ -112,7 +112,7 @@ class DocumentLoader:
             documents = loader.load()
             return documents
         except Exception as e:
-            print(f"Error loading YouTube video: {e}")
+            print(f"[ERROR] Error loading YouTube video: {e}")
 
     def load_pdf(self, path):
         """
@@ -132,7 +132,7 @@ class DocumentLoader:
             pages = loader.load_and_split()
             return pages
         except Exception as e:
-            print(f"Error loading PDF: {e}")
+            print(f"[ERROR] Error loading PDF: {e}")
 
     def load_text_from_html(self, path):
         """
@@ -152,7 +152,7 @@ class DocumentLoader:
             data = loader.load()
             return data
         except Exception as e:
-            print(f"Error loading text from HTML: {e}")
+            print(f"[ERROR] Error loading text from HTML: {e}")
 
     def load_markdown(self, path):
         """
@@ -172,7 +172,7 @@ class DocumentLoader:
             data = loader.load()
             return data
         except Exception as e:
-            print(f"Error loading Markdown: {e}")
+            print(f"[ERROR] Error loading Markdown: {e}")
 
     def load_doc(self, path):
         """
@@ -192,7 +192,7 @@ class DocumentLoader:
             data = loader.load()
             return data
         except Exception as e:
-            print(f"Error loading DOCX: {e}")
+            print(f"[ERROR] Error loading DOCX: {e}")
 
 
 class TextSplitter:
@@ -222,4 +222,4 @@ class TextSplitter:
         try:
             return self.text_splitter.split_documents(documents)
         except Exception as e:
-            print(f"Error splitting documents: {e}")
+            print(f"[ERROR] Error splitting documents: {e}")

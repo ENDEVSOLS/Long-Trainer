@@ -66,7 +66,7 @@ class DocumentRetriever:
 
 
         except Exception as e:
-            print(f"Initialization error in AdvancedDocumentRetriever: {e}")
+            print(f"[ERROR] Initialization error in AdvancedDocumentRetriever: {e}")
 
     def _index_documents(self):
         """
@@ -85,7 +85,7 @@ class DocumentRetriever:
                                                                 self.embedding_model)
                         self.faiss_index.merge_from(additional_index)
             except Exception as e:
-                print(f"Error indexing documents: {e}")
+                print(f"[ERROR] Error indexing documents: {e}")
 
     def save_index(self, file_path):
         """
@@ -97,7 +97,7 @@ class DocumentRetriever:
         try:
             self.faiss_index.save_local(file_path)
         except Exception as e:
-            print(f"Error saving FAISS index: {e}")
+            print(f"[ERROR] Error saving FAISS index: {e}")
 
     def update_index(self, new_documents):
         """
@@ -108,7 +108,7 @@ class DocumentRetriever:
         """
         # Add this method to handle updates to the existing index
         if not self.faiss_index:
-            raise ValueError("FAISS index not initialized.")
+            raise ValueError("[ERROR] FAISS index not initialized.")
         try:
             if len(new_documents) < 1000:
                 new_index = FAISS.from_documents(new_documents, self.embedding_model)
@@ -130,7 +130,7 @@ class DocumentRetriever:
             self.faiss_retriever = self.faiss_index.as_retriever(search_kwargs={"k": self.k})
 
         except Exception as e:
-            print(f"Error Updating FAISS index: {e}")
+            print(f"[ERROR] Error Updating FAISS index: {e}")
 
     def delete_index(self, file_path):
         """
@@ -146,9 +146,9 @@ class DocumentRetriever:
                 else:
                     os.remove(file_path)
             else:
-                print("FAISS index path does not exist.")
+                print("[ERROR] FAISS index path does not exist.")
         except Exception as e:
-            print(f"Error deleting FAISS index path: {e}")
+            print(f"[ERROR] Error deleting FAISS index path: {e}")
 
     def retrieve_documents(self):
         """
@@ -166,4 +166,4 @@ class DocumentRetriever:
             else:
                 return self.faiss_retriever
         except Exception as e:
-            print(f"Error retrieving documents: {e}")
+            print(f"[ERROR] Error retrieving documents: {e}")
