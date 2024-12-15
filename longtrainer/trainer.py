@@ -552,7 +552,7 @@ class LongTrainer:
             print(f"[ERROR] Error creating new Vision Chat: {e}")
             return None
 
-    def update_chatbot(self, paths, bot_id, links=None, search_query=None, prompt_template=None,
+    def update_chatbot(self, paths, bot_id, links=None, search_query=None, documents=None, prompt_template=None,
                        use_unstructured=False):
 
         """
@@ -562,6 +562,7 @@ class LongTrainer:
             paths (list): List of file paths to load documents from.
             links (list): List of web links to load documents from.
             search_query (str): Wikipedia search query to load documents from.
+            documents (Langchain Documents): Loaded Documents.
             bot_id (str): The unique identifier for the bot.
             use_unstructured (bool) : Use Unstructured Document Loader.
 
@@ -582,6 +583,8 @@ class LongTrainer:
                 self.add_document_from_link(links, bot_id)
             if search_query:
                 self.add_document_from_query(search_query, bot_id)
+            if documents:
+                self.pass_documents(documents, bot_id)
 
             # Fetch the updated documents (after adding new ones)
             updated_documents = self.get_documents(bot_id)  # Re-fetch documents after adding
