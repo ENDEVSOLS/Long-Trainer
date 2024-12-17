@@ -1,5 +1,5 @@
 langchain-core==0.3.17
-openai==1.54.4
+openai==1.57.4
 faiss-cpu==1.9.0
 tiktoken==0.8.0
 wikipedia==1.4.0
