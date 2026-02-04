@@ -19,7 +19,7 @@ langchain-community==0.3.0
 cryptography==43.0.3
 duckduckgo-search==6.3.5
 python-magic==0.4.27
-unstructured==0.15.7
+unstructured==0.18.18
 unstructured[all-docs]
 langchain-unstructured[local]
 
