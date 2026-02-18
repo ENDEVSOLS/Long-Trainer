@@ -1,225 +1,210 @@
+"""Document loaders and text splitters for LongTrainer V2."""
+
+from __future__ import annotations
+
+from typing import Optional
+
 from langchain_community.document_loaders import (
-    CSVLoader, WikipediaLoader, UnstructuredURLLoader,
-    YoutubeLoader, PyPDFLoader, BSHTMLLoader,
-    Docx2txtLoader, UnstructuredMarkdownLoader
+    BSHTMLLoader,
+    CSVLoader,
+    Docx2txtLoader,
+    UnstructuredMarkdownLoader,
+    UnstructuredURLLoader,
+    WikipediaLoader,
+    YoutubeLoader,
 )
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_unstructured import UnstructuredLoader
 
 
 class DocumentLoader:
+    """Loads documents from various sources.
 
-    def load_unstructured(self, path):
-        """
-        Load data from a file at the specified path:
+    Supports: CSV, PDF, DOCX, HTML, Markdown/TXT, URLs, YouTube, Wikipedia,
+    and any format via UnstructuredLoader.
+    """
 
-        supported files:
-        "csv", "doc", "docx", "epub", "image", "md", "msg", "odt", "org", "pdf", "ppt", "pptx", "rtf", "rst", "tsv", "xlsx"
+    def load_unstructured(self, path: str) -> list[Document]:
+        """Load from any file using UnstructuredLoader.
 
+        Supports: csv, doc, docx, epub, image, md, msg, odt, org, pdf,
+        ppt, pptx, rtf, rst, tsv, xlsx, and more.
 
         Args:
-            path (str): The file paths
+            path: File path to load.
 
         Returns:
-            The loaded  data.
-
-        Exceptions:
-            Prints an error message if the loading fails.
+            List of loaded documents.
         """
         try:
             loader = UnstructuredLoader(path)
-            data = loader.load()
-            return data
+            return loader.load()
         except Exception as e:
             print(f"[ERROR] Error loading Unstructured: {e}")
+            return []
 
-    def load_csv(self, path):
-        """
-        Load data from a CSV file at the specified path.
+    def load_csv(self, path: str) -> list[Document]:
+        """Load from a CSV file.
 
         Args:
-            path (str): The file path to the CSV file.
+            path: File path to the CSV.
 
         Returns:
-            The loaded CSV data.
-
-        Exceptions:
-            Prints an error message if the CSV loading fails.
+            List of loaded documents.
         """
         try:
             loader = CSVLoader(file_path=path)
-            data = loader.load()
-            return data
+            return loader.load()
         except Exception as e:
             print(f"[ERROR] Error loading CSV: {e}")
+            return []
 
-    def wikipedia_query(self, search_query):
-        """
-        Query Wikipedia using a given search term and return the results.
+    def wikipedia_query(self, search_query: str, max_docs: int = 2) -> list[Document]:
+        """Query Wikipedia and return results.
 
         Args:
-            search_query (str): The search term to query on Wikipedia.
+            search_query: Search term for Wikipedia.
+            max_docs: Maximum number of Wikipedia articles to load.
 
         Returns:
-            The query results.
-
-        Exceptions:
-            Prints an error message if the Wikipedia query fails.
+            List of loaded documents.
         """
         try:
-            data = WikipediaLoader(query=search_query, load_max_docs=2).load()
+            data = WikipediaLoader(query=search_query, load_max_docs=max_docs).load()
             return data
         except Exception as e:
             print(f"[ERROR] Error querying Wikipedia: {e}")
+            return []
 
-    def load_urls(self, urls):
-        """
-        Load and parse content from a list of URLs.
+    def load_urls(self, urls: list[str]) -> list[Document]:
+        """Load and parse content from a list of URLs.
 
         Args:
-            urls (list): A list of URLs to load.
+            urls: List of URLs to load.
 
         Returns:
-            The loaded data from the URLs.
-
-        Exceptions:
-            Prints an error message if loading URLs fails.
+            List of loaded documents.
         """
         try:
             loader = UnstructuredURLLoader(urls=urls)
-            data = loader.load()
-            return data
+            return loader.load()
         except Exception as e:
             print(f"[ERROR] Error loading URLs: {e}")
+            return []
 
-    def load_YouTubeVideo(self, urls):
-        """
-        Load YouTube video information from provided URLs.
+    def load_youtube_video(self, url: str) -> list[Document]:
+        """Load YouTube video transcript.
 
         Args:
-            urls (list): A list of YouTube video URLs.
+            url: YouTube video URL.
 
         Returns:
-            The loaded documents from the YouTube URLs.
-
-        Exceptions:
-            Prints an error message if loading YouTube videos fails.
+            List of loaded documents.
         """
         try:
             loader = YoutubeLoader.from_youtube_url(
-                urls, add_video_info=True, language=["en", "pt", "zh-Hans", "es", "ur", "hi"],
-                translation="en")
-            documents = loader.load()
-            return documents
+                url,
+                add_video_info=True,
+                language=["en", "pt", "zh-Hans", "es", "ur", "hi"],
+                translation="en",
+            )
+            return loader.load()
         except Exception as e:
             print(f"[ERROR] Error loading YouTube video: {e}")
+            return []
 
-    def load_pdf(self, path):
-        """
-        Load data from a PDF file at the specified path.
+    def load_pdf(self, path: str) -> list[Document]:
+        """Load from a PDF file.
 
         Args:
-            path (str): The file path to the PDF file.
+            path: File path to the PDF.
 
         Returns:
-            The loaded and split PDF pages.
-
-        Exceptions:
-            Prints an error message if the PDF loading fails.
+            List of loaded and split pages.
         """
         try:
             loader = PyPDFLoader(path)
-            pages = loader.load_and_split()
-            return pages
+            return loader.load_and_split()
         except Exception as e:
             print(f"[ERROR] Error loading PDF: {e}")
+            return []
 
-    def load_text_from_html(self, path):
-        """
-        Load and parse text content from an HTML file at the specified path.
+    def load_text_from_html(self, path: str) -> list[Document]:
+        """Load and parse text from an HTML file.
 
         Args:
-            path (str): The file path to the HTML file.
+            path: File path to the HTML file.
 
         Returns:
-            The loaded HTML data.
-
-        Exceptions:
-            Prints an error message if loading text from HTML fails.
+            List of loaded documents.
         """
         try:
             loader = BSHTMLLoader(path)
-            data = loader.load()
-            return data
+            return loader.load()
         except Exception as e:
             print(f"[ERROR] Error loading text from HTML: {e}")
+            return []
 
-    def load_markdown(self, path):
-        """
-        Load data from a Markdown file at the specified path.
+    def load_markdown(self, path: str) -> list[Document]:
+        """Load from a Markdown or plain text file.
 
         Args:
-            path (str): The file path to the Markdown file.
+            path: File path to the Markdown/text file.
 
         Returns:
-            The loaded Markdown data.
-
-        Exceptions:
-            Prints an error message if loading Markdown fails.
+            List of loaded documents.
         """
         try:
             loader = UnstructuredMarkdownLoader(path)
-            data = loader.load()
-            return data
+            return loader.load()
         except Exception as e:
             print(f"[ERROR] Error loading Markdown: {e}")
+            return []
 
-    def load_doc(self, path):
-        """
-        Load data from a DOCX file at the specified path.
+    def load_doc(self, path: str) -> list[Document]:
+        """Load from a DOCX file.
 
         Args:
-            path (str): The file path to the DOCX file.
+            path: File path to the DOCX file.
 
         Returns:
-            The loaded DOCX data.
-
-        Exceptions:
-            Prints an error message if loading DOCX fails.
+            List of loaded documents.
         """
         try:
             loader = Docx2txtLoader(path)
-            data = loader.load()
-            return data
+            return loader.load()
         except Exception as e:
             print(f"[ERROR] Error loading DOCX: {e}")
+            return []
 
 
 class TextSplitter:
-    def __init__(self, chunk_size=1024, chunk_overlap=100):
-        """
-        Initialize the TextSplitter with a specific chunk size and overlap.
+    """Splits documents into chunks using RecursiveCharacterTextSplitter.
+
+    Args:
+        chunk_size: The size of each text chunk.
+        chunk_overlap: The overlap size between chunks.
+    """
+
+    def __init__(self, chunk_size: int = 1024, chunk_overlap: int = 100) -> None:
+        self.text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
+
+    def split_documents(self, documents: list[Document]) -> list[Document]:
+        """Split documents into chunks.
 
         Args:
-            chunk_size (int): The size of each text chunk.
-            chunk_overlap (int): The overlap size between chunks.
-        """
-        self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-
-    def split_documents(self, documents):
-        """
-        Split the provided documents into chunks based on the chunk size and overlap.
-
-        Args:
-            documents (list): A list of documents to be split.
+            documents: List of documents to split.
 
         Returns:
-            A list of split documents.
-
-        Exceptions:
-            Prints an error message if splitting documents fails.
+            List of split document chunks.
         """
         try:
             return self.text_splitter.split_documents(documents)
         except Exception as e:
             print(f"[ERROR] Error splitting documents: {e}")
+            return []

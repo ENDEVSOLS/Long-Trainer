@@ -1,38 +1,69 @@
+## Updating Bots
 
-## Updating Bots in LongTrainer
+LongTrainer allows you to update bots with new documents, links, and prompt templates after creation.
 
-LongTrainer allows you to seamlessly update your bots with new documents, links, search queries, and prompt templates. This capability ensures that your bot remains relevant and equipped with the latest information, enhancing its conversational abilities and accuracy.
-
-
-
-### Parameters Description
-
-- **paths (list)**: List of file paths from which documents are loaded. These can include local or networked file locations.
-- **bot_id (str)**: The unique identifier for the bot that is being updated.
-- **links (list, optional)**: List of URLs from which to fetch and load content directly into the bot's database.
-- **search_query (str, optional)**: A query string used to perform a search, typically on the internet or a specific database like Wikipedia, to gather content.
-- **prompt_template (str, optional)**: A new or modified prompt template to customize the bot's conversational prompts.
-- **use_unstructured (bool)**: Specifies whether to use unstructured data loaders for documents that do not follow a fixed format or schema.
-
-
-### Example Usage
+### Update with New Documents
 
 ```python
-# Define paths to new documents and other update parameters
-paths = ['new_data/reports.pdf', 'new_data/summary.txt']
-links = ['http://example.com/latest-news', 'http://example.com/data']
-search_query = "current trends in AI"
-
-# Update the bot
 trainer.update_chatbot(
-    paths=paths,
-    bot_id='your_bot_id',
-    links=links,
-    search_query=search_query,
-    prompt_template="Your updated prompt template here",
-    use_unstructured=True
+    paths=["new_data/report.pdf", "new_data/notes.md"],
+    bot_id=bot_id,
 )
+```
 
-# Confirm the bot has been updated
-print("Bot updated successfully with new data and configurations.")
+### Update with Links and Search Queries
+
+```python
+trainer.update_chatbot(
+    paths=[],
+    bot_id=bot_id,
+    links=["https://example.com/latest-news"],
+    search_query="Current trends in AI",
+)
+```
+
+### Parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `paths` | `list[str]` | File paths to load |
+| `bot_id` | `str` | The bot's unique identifier |
+| `links` | `list[str]` | Optional web URLs or YouTube links |
+| `search_query` | `str` | Optional Wikipedia search query |
+| `documents` | `list` | Optional pre-loaded LangChain documents |
+| `prompt_template` | `str` | Optional new prompt template |
+| `use_unstructured` | `bool` | Use UnstructuredLoader for files |
+
+### Update Behavior
+
+When updating a bot:
+
+1. New documents are added to MongoDB
+2. The FAISS index is updated incrementally (existing index is preserved)
+3. The retriever is rebuilt with the expanded index
+4. Existing chat sessions continue to work with the updated knowledge base
+
+### Update the Prompt Template
+
+Change the prompt without adding new documents:
+
+```python
+trainer.set_custom_prompt_template(
+    bot_id,
+    "You are a customer support agent. Use only the provided context. {context}"
+)
+```
+
+### Full Update Example
+
+```python
+trainer.update_chatbot(
+    paths=["reports/q4_2024.pdf"],
+    bot_id=bot_id,
+    links=["https://example.com/blog/update"],
+    search_query="quarterly earnings reports",
+    prompt_template="You are a financial analyst. {context}",
+    use_unstructured=True,
+)
+print("Bot updated successfully.")
 ```

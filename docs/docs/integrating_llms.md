@@ -1,96 +1,110 @@
+## Integrating LLMs
 
+LongTrainer works with any LangChain-compatible language model. Pass a custom LLM to the `LongTrainer` constructor or to individual bots via `create_bot()`.
 
-## Integrating Multiple Large Language Models with LongTrainer
+### Default
 
-LongTrainer is designed to be flexible and extensible, supporting a variety of Large Language Models (LLMs) and embeddings. This allows users to tailor the AI capabilities of their applications to meet specific requirements and leverage the strengths of different AI models.
-
-### Supported Large Language Models and Embeddings
-
-LongTrainer currently supports the following LLMs:
-
-- ✅ **OpenAI (default)**
-- ✅ **VertexAI**
-- ✅ **HuggingFace**
-- ✅ **AWS Bedrock**
-- ✅ **Groq**
-- ✅ **TogetherAI**
-
-Each of these models can be integrated seamlessly into your LongTrainer setup, providing specialized capabilities and enhancements to your applications.
-
-### Example Integrations
-
-#### VertexAI Integration
+LongTrainer uses OpenAI by default:
 
 ```python
 from longtrainer.trainer import LongTrainer
-from langchain_community.llms import VertexAI
 
-# Initialize the VertexAI model
-llm = VertexAI()
-
-# Create a LongTrainer instance with VertexAI
-trainer = LongTrainer(mongo_endpoint='mongodb://localhost:27017/', llm=llm)
+trainer = LongTrainer()  # Uses ChatOpenAI(model="gpt-4o-2024-08-06")
 ```
 
-#### TogetherAI Integration
+### OpenAI
 
 ```python
+from langchain_openai import ChatOpenAI
 from longtrainer.trainer import LongTrainer
-from langchain_community.llms import Together
 
-# Configure the TogetherAI model
-llm = Together(
-    model="togethercomputer/RedPajama-INCITE-7B-Base",
-    temperature=0.7,
-    max_tokens=128,
-    top_k=1,
-    # together_api_key="..."
-)
-
-# Create a LongTrainer instance with TogetherAI
-trainer = LongTrainer(mongo_endpoint='mongodb://localhost:27017/', llm=llm)
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
+trainer = LongTrainer(llm=llm)
 ```
 
-#### AWS Bedrock Integration
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+from longtrainer.trainer import LongTrainer
+
+llm = ChatAnthropic(model="claude-3-5-sonnet-20241022", temperature=0.3)
+trainer = LongTrainer(llm=llm)
+```
+
+### Google VertexAI
+
+```python
+from langchain_google_vertexai import ChatVertexAI
+from longtrainer.trainer import LongTrainer
+
+llm = ChatVertexAI(model="gemini-1.5-pro")
+trainer = LongTrainer(llm=llm)
+```
+
+### AWS Bedrock
 
 ```python
 from langchain_aws import ChatBedrock
 from longtrainer.trainer import LongTrainer
 
-# Initialize the AWS Bedrock model with specific settings
-chat = ChatBedrock(
+llm = ChatBedrock(
     model_id="anthropic.claude-3-haiku-20240307-v1:0",
-    model_kwargs={"temperature": 0.5}
+    model_kwargs={"temperature": 0.5},
 )
-
-# Set up LongTrainer with AWS Bedrock
-trainer = LongTrainer(
-    mongo_endpoint='mongodb://localhost:27017/',
-    chunk_size=1024,
-    encrypt_chats=False,
-    llm=chat
-)
+trainer = LongTrainer(llm=llm)
 ```
 
-#### Grok API Integration
+### Groq
 
 ```python
+from langchain_groq import ChatGroq
 from longtrainer.trainer import LongTrainer
-from langchain_community.llms import ChatGroq
 
-# Configure the Grok API model
 llm = ChatGroq(
     model="llama-3.1-70b-versatile",
     temperature=0,
     max_tokens=1024,
-    model_kwargs={
-        "top_p": 1,
-        "stream": False
-    },
-    api_key='gsk_...'
+    api_key="gsk_...",
 )
-
-# Integrate Grok API with LongTrainer
-trainer = LongTrainer(mongo_endpoint='mongodb://localhost:27017/', llm=llm)
+trainer = LongTrainer(llm=llm)
 ```
 
+### Together AI
+
+```python
+from langchain_together import ChatTogether
+from longtrainer.trainer import LongTrainer
+
+llm = ChatTogether(
+    model="meta-llama/Llama-3-70b-chat-hf",
+    temperature=0.7,
+    max_tokens=512,
+)
+trainer = LongTrainer(llm=llm)
+```
+
+### Ollama (Local Models)
+
+```python
+from langchain_ollama import ChatOllama
+from longtrainer.trainer import LongTrainer
+
+llm = ChatOllama(model="llama3.2", temperature=0.3)
+trainer = LongTrainer(llm=llm)
+```
+
+### Per-Bot LLM
+
+Each bot can use a different LLM, overriding the global default:
+
+```python
+from langchain_openai import ChatOpenAI
+
+trainer = LongTrainer()  # Global default: gpt-4o
+bot_id = trainer.initialize_bot_id()
+trainer.add_document_from_path("data.pdf", bot_id)
+
+# This bot uses gpt-4o-mini instead
+trainer.create_bot(bot_id, llm=ChatOpenAI(model="gpt-4o-mini"))
+```

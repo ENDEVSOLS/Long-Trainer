@@ -2,7 +2,11 @@
   <img src="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/assets/longtrainer-logo.png?raw=true" alt="LongTrainer Logo">
 </p>
 
-<h1 align="center">LongTrainer - Production-Ready LangChain</h1>
+<h1 align="center">LongTrainer 1.0.0 — Production-Ready RAG Framework</h1>
+
+<p align="center">
+  <strong>Multi-tenant bots, streaming, tools, and persistent memory — all batteries included.</strong>
+</p>
 
 <p align="center">
   <a href="https://pypi.org/project/longtrainer/">
@@ -14,189 +18,293 @@
   <a href="https://pepy.tech/project/longtrainer">
     <img src="https://static.pepy.tech/badge/longtrainer/month" alt="Monthly Downloads">
   </a>
-  <a href="https://colab.research.google.com/drive/1HE30D5q5onD8sfS50-06XPDXnbdvnjIy?usp=sharing">
-    <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open in Colab">
-  </a>
-</p>
-<hr />
-<p align="center">
-  <a href="https://endevsols.com/longtrainer-the-next-evolution-in-production-ready-langchain-frameworks/">
-    Visit Blog Post
+  <a href="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/LICENSE">
+    <img src="https://img.shields.io/github/license/ENDEVSOLS/Long-Trainer" alt="License">
   </a>
 </p>
 
 <p align="center">
-  <a class="github-button" href="https://github.com/ENDEVSOLS/Long-Trainer" data-color-scheme="no-preference: light; light: light; dark: dark;" data-size="large" data-show-count="true" aria-label="Star ENDEVSOLS/Long-Trainer on GitHub">Star</a>
-  <a class="github-button" href="https://github.com/ENDEVSOLS" data-color-scheme="no-preference: light; light: light; dark: dark;" data-size="large" data-show-count="true" aria-label="Follow @ENDEVSOLS on GitHub">Follow @ENDEVSOLS</a>
+  <a href="https://endevsols.github.io/Long-Trainer/">Documentation</a> •
+  <a href="#quick-start-">Quick Start</a> •
+  <a href="#features-">Features</a> •
+  <a href="#migration-from-034">Migration from 0.3.4</a>
 </p>
 
+---
 
-# Official Documentation
+## What is LongTrainer?
 
-Explore the comprehensive [LongTrainer Documentation](https://endevsols.github.io/Long-Trainer/) for detailed
-instructions on installation, features, and API usage.
+LongTrainer is a **production-ready RAG framework** that turns your documents into intelligent, multi-tenant chatbots — with **5 lines of code**.
 
-# Installation
+Built on top of LangChain, LongTrainer handles the hard parts that every production RAG system needs: **multi-bot isolation, persistent MongoDB memory, FAISS vector search, streaming responses, custom tool calling, chat encryption, and vision support** — so you don't have to wire them together yourself.
 
-Introducing LongTrainer, a sophisticated extension of the LangChain framework designed specifically for managing
-multiple bots and providing isolated, context-aware chat sessions. Ideal for developers and businesses looking to
-integrate complex conversational AI into their systems, LongTrainer simplifies the deployment and customization of LLMs.
+### Why LongTrainer over raw LangChain / LlamaIndex?
 
-```markdown
+| Problem | LangChain / LlamaIndex | LongTrainer |
+|---|---|---|
+| Multi-bot management | DIY — manage state per bot | Built-in: `initialize_bot_id()` → isolated bots |
+| Persistent chat memory | Wire MongoDB/Redis yourself | Built-in: MongoDB-backed, encrypted, restorable |
+| Document ingestion | Assemble loaders + splitters | One-liner: `add_document_from_path(path, bot_id)` |
+| Streaming responses | Implement `astream` yourself | `get_response(stream=True)` yields chunks |
+| Custom tool calling | Define tools, build agent | `add_tool(my_tool)` — plug and play |
+| Web search augmentation | Find and integrate search | Built-in toggle: `web_search=True` |
+| Vision chat | Complex multi-modal setup | `get_vision_response()` — pass images |
+| Self-improving from chats | Not a concept | `train_chats()` feeds Q&A back into KB |
+| Encryption at rest | DIY | `encrypt_chats=True` — Fernet out of the box |
+
+---
+
+## Installation
+
+```bash
 pip install longtrainer
 ```
 
-## Installation Instructions for Required Libraries and Tools
+**With agent/tool-calling support (optional):**
 
-### 1. Linux (Ubuntu/Debian)
+```bash
+pip install longtrainer[agent]
+```
 
-To install the required packages on a Linux system (specifically Ubuntu or Debian), you can use the apt package manager.
-The following command installs several essential libraries and tools:
+### System Dependencies
 
-```markdown
+<details>
+<summary><strong>Linux (Ubuntu/Debian)</strong></summary>
+
+```bash
 sudo apt install libmagic-dev poppler-utils tesseract-ocr qpdf libreoffice pandoc
 ```
+</details>
 
-### 2. macOS
+<details>
+<summary><strong>macOS</strong></summary>
 
-On macOS, you can install these packages using brew, the Homebrew package manager. If you don't have Homebrew installed,
-you can install it from brew.sh.
-
-```markdown
+```bash
 brew install libmagic poppler tesseract qpdf libreoffice pandoc
 ```
+</details>
 
-# Features 🌟
+---
 
-- ✅ **Long Memory:** Retains context effectively for extended interactions.
-- ✅ **Multi-Bot Management:** Easily configure and manage multiple bots within a single framework, perfect for scaling
-  across various use cases
-- ✅ **Isolated Chat Sessions:** Each bot operates within its own session, ensuring interactions remain distinct and
-  contextually relevant without overlap.
-- ✅ **Context-Aware Interactions:**  Utilize enhanced memory capabilities to maintain context over extended dialogues,
-  significantly improving user experience
-- ✅ **Scalable Architecture:** Designed to scale effortlessly with your needs, whether you're handling hundreds of users
-  or just a few.
-- ✅ **Enhanced Customization:** Tailor the behavior to fit specific needs.
-- ✅ **Memory Management:** Efficient handling of chat histories and contexts.
-- ✅ **GPT Vision Support:** Integration Context Aware GPT-powered visual models.
-- ✅ **Different Data Formats:** Supports various data input formats.
-- ✅ **VectorStore Management:** Advanced management of vector storage for efficient retrieval.
+## Quick Start 🚀
 
-## Diverse Use Cases:
-
-- ✅ **Enterprise Solutions:** Streamline customer interactions, automate responses, and manage multiple departmental
-  bots from a single platform.
-- ✅ **Educational Platforms:** Enhance learning experiences with AI tutors capable of maintaining context throughout
-  sessions.
-- ✅ **Healthcare Applications:** Support patient management with bots that provide consistent, context-aware
-  interactions.
-
-## Works for All Langchain Supported LLM and Embeddings
-
-- ✅ OpenAI (default)
-- ✅ VertexAI
-- ✅ HuggingFace
-- ✅ AWS Bedrock
-- ✅ Groq
-- ✅ TogetherAI
-
-# Example
-
-VertexAI LLMs
-
-```python
-from longtrainer.trainer import LongTrainer
-from langchain_community.llms import VertexAI
-
-llm = VertexAI()
-
-trainer = LongTrainer(mongo_endpoint='mongodb://localhost:27017/', llm=llm)
-```
-
-TogetherAI LLMs
-
-```python
-from longtrainer.trainer import LongTrainer
-from langchain_community.llms import Together
-
-llm = Together(
-    model="togethercomputer/RedPajama-INCITE-7B-Base",
-    temperature=0.7,
-    max_tokens=128,
-    top_k=1,
-    # together_api_key="..."
-)
-
-trainer = LongTrainer(mongo_endpoint='mongodb://localhost:27017/', llm=llm)
-
-```
-
-## Usage Example 🚀
-
-Here's a quick start guide on how to use LongTrainer:
+### RAG Mode (Default) — Simple Document Q&A
 
 ```python
 from longtrainer.trainer import LongTrainer
 import os
 
-# Set your OpenAI API key
-os.environ["OPENAI_API_KEY"] = "sk-"
+os.environ["OPENAI_API_KEY"] = "sk-..."
 
-# Initialize LongTrainer
-trainer = LongTrainer(mongo_endpoint='mongodb://localhost:27017/', ensemble=True, encrypt_chats=True)
+# Initialize
+trainer = LongTrainer(mongo_endpoint="mongodb://localhost:27017/")
 bot_id = trainer.initialize_bot_id()
-print('Bot ID: ', bot_id)
 
-# Add Data
-path = 'path/to/your/data'
-trainer.add_document_from_path(path, bot_id)
+# Add documents (PDF, DOCX, CSV, HTML, MD, TXT, URLs, YouTube, Wikipedia)
+trainer.add_document_from_path("path/to/your/data.pdf", bot_id)
 
-# Initialize Bot
+# Create bot and start chatting
 trainer.create_bot(bot_id)
-
-# Start a New Chat
 chat_id = trainer.new_chat(bot_id)
 
-# Send a Query and Get a Response
-query = 'Your query here'
-response = trainer.get_response(query, bot_id, chat_id)
-print('Response: ', response)
-  ```
-
-Here's a guide on how to use Vision Chat:
-
-```python
-chat_id = trainer.new_vision_chat(bot_id)
-
-query = 'Your query here'
-image_paths = ['nvidia.jpg']
-response = trainer.get_vision_response(query, image_paths, str(bot_id), str(vision_id))
-print('Response: ', response)
+# Get response
+answer, sources = trainer.get_response("What is this document about?", bot_id, chat_id)
+print(answer)
 ```
 
-List Chats and Display Chat History:
+### Streaming Responses
 
 ```python
-trainer.list_chats(bot_id)
-
-trainer.get_chat_by_id(chat_id=chat_id)
+# Stream tokens in real-time
+for chunk in trainer.get_response("Summarize the key points", bot_id, chat_id, stream=True):
+    print(chunk, end="", flush=True)
 ```
 
-This project is still under active development. Community feedback and contributions are highly appreciated.
+### Async Streaming
+
+```python
+async for chunk in trainer.aget_response("Explain the methodology", bot_id, chat_id):
+    print(chunk, end="", flush=True)
+```
+
+### Agent Mode — With Custom Tools
+
+```python
+from longtrainer.tools import web_search
+from langchain_core.tools import tool
+
+# Add built-in web search tool
+trainer.add_tool(web_search, bot_id)
+
+# Add your own custom tool
+@tool
+def calculate(expression: str) -> str:
+    """Evaluate a math expression."""
+    return str(eval(expression))
+
+trainer.add_tool(calculate, bot_id)
+
+# Create bot in agent mode
+trainer.create_bot(bot_id, agent_mode=True)
+chat_id = trainer.new_chat(bot_id)
+
+response, _ = trainer.get_response("What is 42 * 17?", bot_id, chat_id)
+print(response)
+```
+
+### Vision Chat
+
+```python
+vision_id = trainer.new_vision_chat(bot_id)
+response, sources = trainer.get_vision_response(
+    "Describe what you see in this image",
+    image_paths=["photo.jpg"],
+    bot_id=bot_id,
+    vision_chat_id=vision_id,
+)
+print(response)
+```
+
+### Per-Bot Customization
+
+```python
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+
+# Each bot can have its own LLM, embeddings, and retrieval config
+trainer.create_bot(
+    bot_id,
+    llm=ChatOpenAI(model="gpt-4o-mini", temperature=0.2),
+    embedding_model=OpenAIEmbeddings(model="text-embedding-3-small"),
+    num_k=5,                    # retrieve 5 docs per query
+    prompt_template="You are a helpful legal assistant. {context}",
+    agent_mode=True,            # enable tool calling
+    tools=[web_search],
+)
+```
+
+---
+
+## Features ✨
+
+### Core
+- ✅ **Dual Mode:** RAG (LCEL chain) for simple Q&A, Agent (LangGraph) for tool calling
+- ✅ **Streaming Responses:** Sync and async streaming out of the box
+- ✅ **Custom Tool Calling:** Add any LangChain `@tool` — web search, document reader, or your own
+- ✅ **Multi-Bot Management:** Isolated bots with independent sessions, data, and configs
+- ✅ **Persistent Memory:** MongoDB-backed chat history, fully restorable
+- ✅ **Chat Encryption:** Fernet encryption for stored conversations
+
+### Document Ingestion
+- ✅ **PDF, DOCX, CSV, HTML, Markdown, TXT** — auto-detected by extension
+- ✅ **URLs, YouTube, Wikipedia** — via `add_document_from_link()` / `add_document_from_query()`
+- ✅ **Any format** via `use_unstructured=True` (PowerPoint, images, etc.)
+
+### RAG Pipeline
+- ✅ **FAISS Vector Store** — fast similarity search with batched indexing
+- ✅ **Multi-Query Ensemble Retrieval** — generates alternative queries for better recall
+- ✅ **Self-Improving:** `train_chats()` feeds past Q&A back into the knowledge base
+
+### Customization
+- ✅ **Per-bot LLM** — use different models for different bots
+- ✅ **Per-bot Embeddings** — custom embedding models per bot
+- ✅ **Per-bot Retrieval Config** — custom `num_k`, `chunk_size`, `chunk_overlap`
+- ✅ **Custom Prompt Templates** — full control over system prompts
+- ✅ **Vision Chat** — GPT-4 Vision support with image understanding
+
+### Works with All LangChain-Compatible LLMs
+
+- ✅ OpenAI (default)
+- ✅ Anthropic
+- ✅ Google VertexAI / Gemini
+- ✅ AWS Bedrock
+- ✅ HuggingFace
+- ✅ Groq
+- ✅ Together AI
+- ✅ Ollama (local models)
+- ✅ Any `BaseChatModel` implementation
+
+---
+
+## API Reference
+
+### `LongTrainer` — Main Class
+
+```python
+trainer = LongTrainer(
+    mongo_endpoint="mongodb://localhost:27017/",
+    llm=None,                # default: ChatOpenAI(model="gpt-4o-2024-08-06")
+    embedding_model=None,    # default: OpenAIEmbeddings()
+    prompt_template=None,    # custom system prompt
+    max_token_limit=32000,   # conversation memory limit
+    num_k=3,                 # docs to retrieve per query
+    chunk_size=2048,         # text splitter chunk size
+    chunk_overlap=200,       # text splitter overlap
+    ensemble=False,          # enable multi-query ensemble retrieval
+    encrypt_chats=False,     # enable Fernet encryption
+    encryption_key=None,     # custom encryption key (auto-generated if None)
+)
+```
+
+### Key Methods
+
+| Method | Description |
+|---|---|
+| `initialize_bot_id()` | Create a new bot, returns `bot_id` |
+| `create_bot(bot_id, ...)` | Build the bot from loaded documents |
+| `load_bot(bot_id)` | Restore an existing bot from MongoDB + FAISS |
+| `new_chat(bot_id)` | Start a new chat session, returns `chat_id` |
+| `get_response(query, bot_id, chat_id, stream=False)` | Get response (or stream) |
+| `aget_response(query, bot_id, chat_id)` | Async streaming response |
+| `add_document_from_path(path, bot_id)` | Ingest a file |
+| `add_document_from_link(links, bot_id)` | Ingest URLs / YouTube links |
+| `add_tool(tool, bot_id)` | Register a tool for a bot |
+| `remove_tool(tool_name, bot_id)` | Remove a tool |
+| `list_tools(bot_id)` | List registered tools |
+| `train_chats(bot_id)` | Self-improve from chat history |
+| `new_vision_chat(bot_id)` | Start a vision chat session |
+| `get_vision_response(query, images, bot_id, vision_id)` | Vision response |
+
+---
+
+## Migration from 0.3.4
+
+LongTrainer 1.0.0 is a major upgrade with breaking changes:
+
+| 0.3.4 | 1.0.0 |
+|---|---|
+| `ConversationalRetrievalChain` | LCEL chain (`RAGBot`) or LangGraph agent (`AgentBot`) |
+| `requirements.txt` + `setup.py` | `pyproject.toml` (UV/pip compatible) |
+| No streaming | `stream=True` or `aget_response()` |
+| No tool calling | `add_tool()` + `agent_mode=True` |
+| `langchain.memory` | `langchain_core.chat_history` |
+| Fixed LLM for all bots | Per-bot LLM, embeddings, and config |
+
+**Upgrade path:**
+```bash
+pip install --upgrade longtrainer
+```
+
+The core API (`initialize_bot_id`, `create_bot`, `new_chat`, `get_response`) remains the same — existing code should work with minimal changes. The main difference is `get_response()` now returns `(answer, sources)` instead of `(answer, sources, web_sources)`.
+
+---
 
 ## Citation
-
-If you utilize this repository, please consider citing it with:
 
 ```
 @misc{longtrainer,
   author = {Endevsols},
-  title = {LongTrainer: Production-Ready LangChain},
-  year = {2023},
+  title = {LongTrainer: Production-Ready RAG Framework},
+  year = {2024},
   publisher = {GitHub},
   journal = {GitHub repository},
   howpublished = {\url{https://github.com/ENDEVSOLS/Long-Trainer}},
 }
 ```
 
+## License
+
+[MIT License](LICENSE)
+
+## Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

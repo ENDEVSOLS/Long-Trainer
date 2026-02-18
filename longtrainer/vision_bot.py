@@ -1,256 +1,203 @@
+"""Vision bot modules for LongTrainer V2.
+
+Provides GPT-4 Vision–style chat with image understanding.
+"""
+
+from __future__ import annotations
+
 import base64
-from langchain_openai.chat_models import ChatOpenAI
-from langchain.memory import ConversationTokenBufferMemory
-from langchain.schema.messages import HumanMessage, AIMessage
+from typing import Optional
+
+from langchain_core.chat_history import InMemoryChatMessageHistory
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.retrievers import BaseRetriever
 
 
 class VisionMemory:
-    """
-    A class to manage the memory and conversation history for a vision-enabled conversational AI model.
+    """Manages memory and context retrieval for vision chat sessions.
 
-    This class encapsulates the logic for handling the chat history, generating prompts, and retrieving
-    answers from a language learning model (LLM), with an optional integration of an ensemble retriever
-    for document retrieval. It also formats queries with additional context from web search results.
-
-    Attributes:
-        token_limit (int): The maximum number of tokens allowed in the conversational buffer.
-        ensemble_retriever (object, optional): An instance of an ensemble retriever for document retrieval.
-        prompt_template (str, optional): A template for generating prompts for the AI model.
-        llm (object): An instance of the language learning model.
-        memory (ConversationTokenBufferMemory): An instance for managing conversation token buffer memory.
-        chat_history (list): A list to keep track of the chat history.
-
-    Methods:
-        save_chat_history(query, answer): Saves the given query and answer pair into the chat history.
-        generate_prompt(query, additional_context): Generates a prompt for the AI model based on the given query and additional context.
-        get_answer(query, webdata): Retrieves the answer from the AI model for a given query, considering additional web search data.
+    Args:
+        token_limit: Maximum token limit for conversation buffer.
+        llm: Language model instance.
+        ensemble_retriever: Retriever for document context lookup.
+        prompt_template: System prompt template string.
     """
 
-    def __init__(self, token_limit, llm, ensemble_retriever=None, prompt_template=None):
-        """
-        Initializes the VisionMemory object with a token limit for the conversation buffer, an optional
-        ensemble retriever for document retrieval, and an optional prompt template.
-
-        Args:
-            token_limit (int): The maximum number of tokens allowed in the conversational buffer.
-            ensemble_retriever (object, optional): An instance of an ensemble retriever for document retrieval. Defaults to None.
-            prompt_template (str, optional): A template for generating prompts for the AI model. Defaults to a predefined template.
-        """
+    def __init__(
+        self,
+        token_limit: int,
+        llm: BaseChatModel,
+        ensemble_retriever: Optional[BaseRetriever] = None,
+        prompt_template: Optional[str] = None,
+    ) -> None:
         try:
-            if llm:
-                self.llm = llm
-            else:
-                model_name = 'gpt-4o-2024-08-06'
-                self.llm = ChatOpenAI(model_name=model_name, temperature=0.5)
-
-            self.memory = ConversationTokenBufferMemory(
-                llm=self.llm,
-                max_token_limit=token_limit,
-                memory_key="chat_history",
-                return_messages=True,
-                output_key='answer'
+            self.llm = llm
+            self.chat_history_store = InMemoryChatMessageHistory()
+            self.chat_history: list = []
+            self.prompt_template = prompt_template or (
+                "You are an intelligent assistant named LongTrainer.\n"
+                "{context}\n"
+                "Use the following information to respond accurately. "
+                "If the answer is unknown, admit it rather than fabricating a response.\n"
+                "Chat History: {chat_history}\n"
+                "Question: {question}\n"
+                "Answer:"
             )
-            self.chat_history = []
-            self.prompt_template = prompt_template if prompt_template else '''
-            You will act as Intelligent assistant and your name is longtrainer and you will answer the all kind of queries. 
-            {context}
-            Your task is to answer the query with accurate answer using the chat history context.
-            If the answer is unknown, admitting ignorance is preferred over fabricating a response. Dont need to add irrelevant text explanation in response.
-    
-            Chat History: {chat_history}
-    
-            Question: {question}
-    
-            Answer
-            '''
             self.ensemble_retriever = ensemble_retriever
         except Exception as e:
-            print(f"[ERROR] VisionMemory Initialization error: {e}")
+            print(f"[ERROR] VisionMemory initialization error: {e}")
 
-    def save_chat_history(self, query, answer):
-        """
-        Saves a query and its corresponding answer to the chat history.
-
-        This method appends the query-answer pair to the chat history and updates the conversation token buffer memory.
+    def save_chat_history(self, query: str, answer: str) -> None:
+        """Save a query-answer pair to chat history.
 
         Args:
-            query (str): The user's query or question.
-            answer (str): The AI model's answer or response to the query.
+            query: The user's question.
+            answer: The AI's response.
         """
         try:
             self.chat_history.append([query, answer])
-            self.memory.save_context({"input": query}, {"answer": answer})
+            self.chat_history_store.add_message(HumanMessage(content=query))
+            self.chat_history_store.add_message(AIMessage(content=answer))
         except Exception as e:
-            print(f"[ERROR] VisionMemory Error saving chat history: {e}")
+            print(f"[ERROR] Error saving chat history: {e}")
 
-    def generate_prompt(self, query, additional_context):
-        """
-        Generates a prompt for the AI model based on the given query and additional context.
+    def save_context(self, query: str, answer: str) -> None:
+        """Alias for save_chat_history for backward compatibility."""
+        self.save_chat_history(query, answer)
 
-        This method formats the prompt according to the predefined template, incorporating the provided query and
-        additional context retrieved from relevant documents.
+    def generate_prompt(self, query: str, additional_context: str) -> str:
+        """Generate a formatted prompt for the vision model.
 
         Args:
-            query (str): The user's query or question.
-            additional_context (str): Additional context to be included in the prompt, typically extracted from relevant documents.
+            query: The user's question.
+            additional_context: Context from retrieved documents.
 
         Returns:
-            str: A formatted prompt ready to be used by the AI model.
+            Formatted prompt string.
         """
         try:
-            memory_history = self.memory.load_memory_variables({})
+            messages = self.chat_history_store.messages
             return self.prompt_template.format(
-                context=f"you will answer the query from provided context: {additional_context}",
-                chat_history=memory_history, question=query)
+                context=f"Answer the query from provided context: {additional_context}",
+                chat_history=str(messages),
+                question=query,
+            )
         except Exception as e:
-            print(f"[ERROR] VisionMemory Error Generating Prompt: {e}")
+            print(f"[ERROR] Error generating prompt: {e}")
+            return ""
 
-    def get_answer(self, query, webdata):
-        """
-        Retrieves an answer from the AI model for a given query, considering additional web search data.
-
-        This method uses the ensemble retriever to fetch relevant documents, formats the query with additional web search context,
-        generates a prompt, and then retrieves the AI model's response.
+    def get_answer(self, query: str, webdata: Optional[str] = None) -> tuple[str, list[str]]:
+        """Retrieve context documents and generate a prompt.
 
         Args:
-            query (str): The user's query or question.
-            webdata (str): Additional context from web search to be considered in the response.
+            query: The user's question.
+            webdata: Optional web search context.
 
         Returns:
-            tuple: A tuple containing the generated prompt and a list of unique sources from the retrieved documents.
+            Tuple of (formatted_prompt, list_of_source_paths).
         """
         try:
-            unique_sources = set()
-            docs = self.ensemble_retriever.invoke(query)
+            unique_sources: set[str] = set()
+            docs = self.ensemble_retriever.invoke(query) if self.ensemble_retriever else []
             for doc in docs:
-                # Accessing 'metadata' as an attribute of the 'Document' object
-                source = doc.metadata.get('source') if hasattr(doc, 'metadata') and isinstance(doc.metadata,
-                                                                                               dict) else None
+                source = (
+                    doc.metadata.get("source")
+                    if hasattr(doc, "metadata") and isinstance(doc.metadata, dict)
+                    else None
+                )
                 if source:
                     unique_sources.add(source)
 
-            updated_query = f"{query}\nKindly consider the following text that's extracted from web search while answering the question. The following wensearch context will help you to provide upfated knowledge and kindly consider it must in answering the question.\n{webdata}" if webdata else query
+            updated_query = (
+                f"{query}\nAdditional web search context:\n{webdata}" if webdata else query
+            )
             prompt = self.generate_prompt(updated_query, docs)
             return prompt, list(unique_sources)
         except Exception as e:
-            print(f"[ERROR] VisionMemory Error getting Answer: {e}")
+            print(f"[ERROR] Error getting answer: {e}")
+            return "", []
 
-    def get_memory(self):
-        """
-        Retrieve the conversation memory.
-
-        Returns:
-            The ConversationTokenBufferMemory instance.
-        """
-        return self.memory
+    @property
+    def memory(self):
+        """Backward-compatible memory accessor."""
+        return self
 
 
 class VisionBot:
-    """
-    A class for a vision-based conversational AI model, capable of processing and responding to queries
-    with visual content.
+    """Vision-based conversational AI that processes images with text queries.
 
-    This class provides functionality to encode images, manage conversation history, and generate
-    responses using a vision-enabled language learning model.
+    Encodes images to base64 and sends them alongside text prompts to
+    a multimodal LLM (e.g. GPT-4 Vision).
 
-    Attributes:
-        prompt_template (str): A template for generating prompts for the AI model.
-        max_tokens (int): The maximum number of tokens that the AI model can generate in a single response.
-        vision_chain (ChatOpenAI): An instance of the ChatOpenAI model configured for vision-related tasks.
-        human_message_content (list): A list to store the content of messages from the human user, including encoded images.
-
-    Methods:
-        encode_image(image_path): Encodes the image at the specified path into a base64 string.
-        create_vision_bot(image_files): Prepares the vision bot with a set of encoded images.
-        get_response(query): Generates a response from the AI model for a given query, incorporating any images that have been provided.
+    Args:
+        llm: Language model instance (must support vision/multimodal).
+        prompt_template: System prompt for the vision conversation.
+        max_tokens: Maximum tokens for response generation.
     """
 
-    def __init__(self, llm, prompt_template, max_tokens=1024):
-        """
-        Initializes the VisionBot with a specific prompt template and token limit.
-
-        This constructor sets up a vision-based conversational AI model, using the ChatOpenAI model configured for vision tasks.
-
-        Args:
-            prompt_template (str): The template used for generating prompts for the AI model.
-            max_tokens (int): The maximum number of tokens the AI model can generate for each response.
-
-        The initialized instance contains a vision_chain for AI interactions, a prompt template for generating queries, and an empty list for storing human message content.
-        """
+    def __init__(
+        self,
+        llm: BaseChatModel,
+        prompt_template: str,
+        max_tokens: int = 1024,
+    ) -> None:
         try:
-
-            if llm:
-                self.vision_chain = llm
-            else:
-                model_name = 'gpt-4o-2024-08-06'
-                self.vision_chain = ChatOpenAI(model_name=model_name, max_tokens=max_tokens, temperature=0.5)
-
-            self.prompt_template = prompt_template  # Save prompt template to instance variable
-            self.human_message_content = []  # Initialize as an empty list
+            self.vision_chain = llm
+            self.prompt_template = prompt_template
+            self.human_message_content: list[dict] = []
         except Exception as e:
-            print(f"[ERROR] VisionBot Initialization error: {e}")
+            print(f"[ERROR] VisionBot initialization error: {e}")
 
-    def encode_image(self, image_path):
-        """
-        Encodes an image at a given file path into a base64 string.
-
-        This method is used to prepare images for processing by the vision AI model. The image file is read and converted into a base64 encoded string.
+    def encode_image(self, image_path: str) -> str:
+        """Encode an image file to a base64 string.
 
         Args:
-            image_path (str): The file path of the image to be encoded.
+            image_path: Path to the image file.
 
         Returns:
-            str: The base64 encoded string of the image.
+            Base64-encoded string of the image.
         """
         try:
-            with open(image_path, "rb") as image_file:
-                return base64.b64encode(image_file.read()).decode('utf-8')
+            with open(image_path, "rb") as f:
+                return base64.b64encode(f.read()).decode("utf-8")
         except Exception as e:
-            print(f"[ERROR] VisionBot Image Encoding error: {e}")
+            print(f"[ERROR] Image encoding error: {e}")
+            return ""
 
-    def create_vision_bot(self, image_files):
-        """
-        Prepares the vision bot with a set of encoded images.
-
-        This method takes a list of image file paths, encodes each image using the encode_image method, and stores the encoded images in a format suitable for processing by the vision AI model.
+    def create_vision_bot(self, image_files: list[str]) -> None:
+        """Prepare the bot with encoded images.
 
         Args:
-            image_files (list of str): A list of paths to the image files to be encoded and processed.
+            image_files: List of image file paths to encode.
         """
         try:
-            for file in image_files:
-                encoded_image = self.encode_image(file)  # Use the encode_image function
-                image_snippet = {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{encoded_image}"}  # Corrected key to "url"
-                }
-                self.human_message_content.append(image_snippet)
+            for file_path in image_files:
+                encoded = self.encode_image(file_path)
+                if encoded:
+                    self.human_message_content.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{encoded}"},
+                    })
         except Exception as e:
-            print(f"[ERROR] VisionBot Error Creating Bot: {e}")
+            print(f"[ERROR] Error creating vision bot: {e}")
 
-    def get_response(self, query):
-        """
-        Generates a response from the AI model for a given text query, incorporating any previously provided images.
-
-        This method constructs a conversational context that includes the query and any encoded images, and then invokes the AI model to generate a response based on this context.
+    def get_response(self, query: str) -> str:
+        """Generate a response using images and text query.
 
         Args:
-            query (str): The text query for which a response is sought from the AI model.
+            query: Text query for the vision model.
 
         Returns:
-            str: The AI model's response to the query, considering both the text and any visual content.
+            The model's text response.
         """
         try:
-            # Create a message with the current query
             self.human_message_content.insert(0, {"type": "text", "text": query})
-            # Uncomment and modify the invoke call
-            msg = self.vision_chain.invoke(
-                [AIMessage(
-                    content=self.prompt_template  # Use self.prompt_template
-                ),
-                    HumanMessage(content=self.human_message_content)
-                ]
-            )
+            msg = self.vision_chain.invoke([
+                AIMessage(content=self.prompt_template),
+                HumanMessage(content=self.human_message_content),
+            ])
             return msg.content
         except Exception as e:
-            print(f"[ERROR] VisionBot Error getting Response: {e}")
+            print(f"[ERROR] Error getting vision response: {e}")
+            return ""

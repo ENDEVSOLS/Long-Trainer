@@ -1,93 +1,79 @@
+## Supported Document Formats
 
+LongTrainer handles a wide range of document formats, enabling diverse data sources for your bot's knowledge base.
 
-## Supported Document Formats in LongTrainer
+### Supported File Types
 
-LongTrainer is designed to accommodate a wide range of document formats, enabling you to leverage diverse data sources to enrich your bot's conversational context. This guide details the supported formats and demonstrates how to add documents from different sources to your bot.
+| Format | Extensions | Loader |
+|---|---|---|
+| PDF | `.pdf` | `PyPDFLoader` |
+| Word | `.docx` | `Docx2txtLoader` |
+| CSV | `.csv` | `CSVLoader` |
+| HTML | `.html`, `.htm` | `BSHTMLLoader` |
+| Markdown | `.md`, `.markdown` | `UnstructuredMarkdownLoader` |
+| Plain Text | `.txt` | `UnstructuredMarkdownLoader` |
+| Any format | All above + more | `UnstructuredFileLoader` (via `use_unstructured=True`) |
 
-### Types of Supported Documents
+### Adding Documents
 
-LongTrainer can handle various document types, including structured and unstructured data, ensuring flexibility in how information is ingested and utilized. Here are the document types you can work with:
-
-- **Text Documents**: Includes `.txt`, `.docx`, `.md` (Markdown), and more.
-- **Data Sheets**: Such as `.csv`, `.xlsx`, and `.tsv` files.
-- **Presentations**: Including `.ppt` and `.pptx`.
-- **Web Pages**: HTML files and content extracted from URLs.
-- **PDFs**: Comprehensive support for PDF documents.
-- **Images**: Text extraction from image files.
-- **Other Formats**: `.epub`, `.msg`, `.odt`, `.org`, `.rtf`, and `.rst`.
-
-### Adding Documents to a Bot
-
-You can add documents to your bot using one of several methods provided by LongTrainer, each tailored to different types of data sources:
-
-#### 1. From Local and Network Paths
-
-Add documents directly from file paths, supporting both structured and unstructured data.
-
-**Example Usage**:
+#### From File Paths
 
 ```python
-from longtrainer.trainer import LongTrainer
+# Auto-detected by extension
+trainer.add_document_from_path("report.pdf", bot_id)
+trainer.add_document_from_path("data.csv", bot_id)
+trainer.add_document_from_path("notes.md", bot_id)
 
-# Initialize the trainer
-trainer = LongTrainer()
-
-# Create a new bot
-bot_id = trainer.initialize_bot_id()
-
-# Add documents from a local path
-path = 'path/to/your/document.pdf'
-trainer.add_document_from_path(path, bot_id, use_unstructured=True)
+# Use UnstructuredLoader for any file type
+trainer.add_document_from_path("presentation.pptx", bot_id, use_unstructured=True)
 ```
 
-#### 2. From Web Links
-
-Incorporate content directly from the internet by specifying URLs. This method is particularly useful for adding dynamic content from the web to your bot's knowledge base.
-
-**Example Usage**:
+#### From Web Links
 
 ```python
-# List of web links
-links = ['http://example.com/report1', 'http://example.com/data.csv']
+# URLs
+trainer.add_document_from_link(["https://example.com/article"], bot_id)
 
-# Add documents from these links
-trainer.add_document_from_link(links, bot_id)
+# YouTube videos (transcript extraction)
+trainer.add_document_from_link(["https://youtube.com/watch?v=..."], bot_id)
 ```
 
-#### 3. From Search Queries
-
-Utilize search queries to fetch and load content from platforms like Wikipedia, providing a rich source of information for your bot.
-
-**Example Usage**:
+#### From Wikipedia
 
 ```python
-# Search query for Wikipedia
-search_query = "Deep Learning"
-
-# Add documents from a Wikipedia search
-trainer.add_document_from_query(search_query, bot_id)
+trainer.add_document_from_query("Artificial Intelligence", bot_id)
 ```
 
-#### 4. Custom Loaders
+#### Pre-Loaded Documents
 
-For advanced use cases, you can use custom loaders to integrate specialized or proprietary data formats.
-
-**Example Usage**:
+Pass pre-loaded LangChain `Document` objects directly:
 
 ```python
-# Custom document loader
-documents = custom_langchain_loader('path/to/data')
+from langchain_core.documents import Document
 
-# Add these documents to the bot
+documents = [Document(page_content="Custom content", metadata={"source": "manual"})]
 trainer.pass_documents(documents, bot_id)
 ```
 
-### Supported File Types for Unstructured Data
+### Unstructured Data
 
-When loading unstructured data, LongTrainer can handle a variety of file types, ensuring you can work with data exactly as it exists within your organization.
+When `use_unstructured=True`, LongTrainer uses LangChain's `UnstructuredFileLoader` which supports:
 
-**Supported Unstructured File Types**:
+`csv`, `doc`, `docx`, `epub`, `image`, `md`, `msg`, `odt`, `org`, `pdf`, `pptx`, `rtf`, `rst`, `tsv`, `xlsx`
 
-- `"csv", "doc", "docx", "epub", "image", "md", "msg", "odt", "org", "pdf", "ppt", "pptx", "rtf", "rst", "tsv", "xlsx"`
+This requires system dependencies — see [Installation](installation.md).
 
-Each document added to your bot enhances its ability to understand and respond to queries more effectively, leveraging the rich context provided by diverse data sources.
+### Text Splitting
+
+All documents are automatically split into chunks for FAISS indexing:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `chunk_size` | `2048` | Maximum characters per chunk |
+| `chunk_overlap` | `200` | Overlap between consecutive chunks |
+
+Configure these when creating the `LongTrainer` instance:
+
+```python
+trainer = LongTrainer(chunk_size=1024, chunk_overlap=100)
+```
