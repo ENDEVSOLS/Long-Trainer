@@ -50,8 +50,7 @@ jobs:
 
       - name: Run offline tests
         run: |
-          cd testing-folder
-          python test_01_imports.py
-          python test_02_loaders.py
-          python test_03_tools.py
-          python test_04_bot_architecture.py
+          python tests/test_01_imports.py
+          python tests/test_02_loaders.py
+          python tests/test_03_tools.py
+          python tests/test_04_bot_architecture.py

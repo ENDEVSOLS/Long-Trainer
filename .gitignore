@@ -17,11 +17,7 @@ venv/
 # PyCharm project files (if you are using PyCharm)
 .idea/
 
-test/
 
-
-# Changelog
-CHANGELOG.md
 
 # Testing folder
 testing-folder/
