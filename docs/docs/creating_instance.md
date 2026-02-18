@@ -1,53 +1,70 @@
-
 ## Creating an Instance of LongTrainer
 
-To start using LongTrainer, you need to initialize an instance of the `LongTrainer` class. This instance will allow you to manage chatbots, handle conversational states, and interact with your MongoDB to store and retrieve data securely and efficiently.
+To start using LongTrainer, initialize an instance of the `LongTrainer` class. This instance manages all bots, chat sessions, document ingestion, and MongoDB persistence.
 
-### Initialization Code Snippet
+### Basic Initialization
 
 ```python
 from longtrainer.trainer import LongTrainer
 
-# Initialize the LongTrainer with default parameters
 trainer = LongTrainer()
 ```
 
 ### Constructor Parameters
 
-The `LongTrainer` constructor accepts several parameters that allow you to customize its behavior to fit your specific needs:
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `mongo_endpoint` | `str` | `"mongodb://localhost:27017/"` | MongoDB connection string |
+| `llm` | `BaseChatModel` | `ChatOpenAI(model="gpt-4o-2024-08-06")` | Default language model for all bots |
+| `embedding_model` | `Embeddings` | `OpenAIEmbeddings()` | Default embedding model for document vectorization |
+| `prompt_template` | `str` | Built-in prompt | System prompt template (must include `{context}` placeholder) |
+| `max_token_limit` | `int` | `32000` | Token buffer limit for conversation memory |
+| `num_k` | `int` | `3` | Number of documents to retrieve per query |
+| `chunk_size` | `int` | `2048` | Text splitter chunk size |
+| `chunk_overlap` | `int` | `200` | Text splitter overlap between chunks |
+| `ensemble` | `bool` | `False` | Enable multi-query ensemble retrieval for better recall |
+| `encrypt_chats` | `bool` | `False` | Enable Fernet encryption for stored chats |
+| `encryption_key` | `bytes` | Auto-generated | Custom Fernet encryption key |
 
-- **`mongo_endpoint` (str)**: The connection string URL to your MongoDB instance. This parameter defaults to `'mongodb://localhost:27017/'`, pointing to a MongoDB running on the default port on your local machine. Specify a different URL if your MongoDB instance is hosted elsewhere or configured differently.
-
-- **`llm` (Any)**: The language learning model (LLM) used for processing queries and generating responses. By default, this is set to `None`, which means the system will use `ChatOpenAI` with a GPT-4-Turbo model. You can pass any compatible LLM instance according to your project's requirements.
-
-- **`embedding_model` (Any)**: This parameter allows you to specify the embedding model used for document vectorization. The default is `OpenAIEmbeddings`, which is optimized for general-purpose language understanding.
-
-- **`prompt_template` (Any)**: A template used to generate prompts that guide the LLM in generating appropriate responses. The system uses a predefined template by default, but you can customize this to better suit the nuances of your specific application.
-
-- **`max_token_limit` (int)**: Specifies the maximum number of tokens (words and characters) that the LLM can handle in a single query. This is set to `32000` by default, which is typically sufficient for most conversational applications.
-
-- **`num_k` (int)**: Defines the number of top results (`k`) retrieved by the document retriever during the search process. The default value is `3`, balancing performance and relevance.
-
-- **`chunk_size` (int)**: Determines the size of the text chunks that the `TextSplitter` processes. The default size is `2048`, which affects how text is segmented for processing.
-
-- **`chunk_overlap` (int)**: Defines the overlap size between consecutive text chunks processed by the `TextSplitter`. This parameter is set to `200` by default, ensuring that context isn't lost at chunk boundaries.
-
-- **`encrypt_chats` (Bool)**: A boolean flag that indicates whether chat data should be encrypted before being stored in MongoDB. This is set to `False` by default for development ease, but it is recommended to enable encryption (`True`) in production environments to ensure data privacy.
-
-- **`encryption_key` (Any)**: This parameter is used to initialize the encryption algorithm (Fernet) if `encrypt_chats` is set to `True`. It should be a secure key that remains confidential. By default, it is `None`, and a key will be generated automatically if encryption is enabled.
-
-### Example with Custom Parameters
+### Custom Configuration
 
 ```python
 from longtrainer.trainer import LongTrainer
+from langchain_openai import ChatOpenAI
 
-# Customized LongTrainer initialization
 trainer = LongTrainer(
-    mongo_endpoint='mongodb://custom-host:27017/',
-    max_token_limit=4096,
-    num_k=3,
+    mongo_endpoint="mongodb://custom-host:27017/",
+    llm=ChatOpenAI(model="gpt-4o-mini", temperature=0.3),
+    max_token_limit=16000,
+    num_k=5,
     chunk_size=1024,
     chunk_overlap=100,
-    encrypt_chats=False,
+    ensemble=True,
+    encrypt_chats=True,
 )
 ```
+
+### With Encryption
+
+When `encrypt_chats=True`, all chat history stored in MongoDB is encrypted using Fernet symmetric encryption. You can provide your own key or let LongTrainer generate one:
+
+```python
+from cryptography.fernet import Fernet
+
+key = Fernet.generate_key()
+
+trainer = LongTrainer(
+    encrypt_chats=True,
+    encryption_key=key,
+)
+
+# Save the key — you'll need it to decrypt chats later
+print(f"Encryption key: {key.decode()}")
+```
+
+!!! warning
+    If you lose the encryption key, stored chats cannot be recovered.
+
+### Per-Bot Overrides
+
+While the constructor sets global defaults, each bot can override LLM, embeddings, and retrieval settings individually via `create_bot()`. See [Creating and Using a Bot](creating_using_bot.md) for details.

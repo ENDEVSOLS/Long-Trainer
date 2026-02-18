@@ -4,15 +4,20 @@ site_url: https://ENDEVSOLS.github.io/Long-Trainer
 nav:
   - Home: index.md
   - About: about.md
-  - Installation: installation.md
-  - Creating an Instance: creating_instance.md
-  - Integrating LLMs and Embeddings: integrating_llms.md
-  - Integrating Embeddings: integrating_embeddings.md
-  - Creating and Using a Bot: creating_using_bot.md
-  - Supported Document Formats: supported_formats.md
-  - Chat Management: chat_management.md
-  - Updating Bots: updating_bots.md
-  - Deleting Bots: deleting_bot.md
+  - Getting Started:
+    - Installation: installation.md
+    - Creating an Instance: creating_instance.md
+    - Creating and Using a Bot: creating_using_bot.md
+  - Guides:
+    - Agent Mode & Tools: agent_mode.md
+    - Chat Management: chat_management.md
+    - Supported Formats: supported_formats.md
+    - Updating Bots: updating_bots.md
+    - Deleting Bots: deleting_bot.md
+  - Integrations:
+    - LLMs: integrating_llms.md
+    - Embeddings: integrating_embeddings.md
+  - Migration 0.3.4 → 1.0.0: migration.md
 
 theme:
   name: material
@@ -25,12 +30,16 @@ theme:
     text: 'Roboto'
     code: 'Roboto Mono'
   features:
-    - tabs
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
   markdown_extensions:
     - pymdownx.highlight:
         use_pygments: true
         css_class: codehilite
     - pymdownx.superfences
+    - admonition
+    - pymdownx.details
 
 extra_css:
   - stylesheets/extra.css

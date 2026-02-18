@@ -19,4 +19,12 @@ venv/
 
 test/
 
-# There can be more depending on your specific configuration and needs
+
+# Changelog
+CHANGELOG.md
+
+# Testing folder
+testing-folder/
+
+# Lock file
+uv.lock

@@ -1,32 +1,54 @@
-# LongTrainer
-Introducing LongTrainer, a sophisticated extension of the LangChain framework designed specifically for managing multiple bots and providing isolated, context-aware chat sessions. Ideal for developers and businesses looking to integrate complex conversational AI into their systems, LongTrainer simplifies the deployment and customization of LLMs.
+# About LongTrainer
 
+LongTrainer is a production-ready RAG framework built on LangChain, designed for managing multiple bots with isolated, context-aware chat sessions. It handles the infrastructure that every production RAG system needs — so you can focus on your application logic.
 
-# Features 🌟
+## Features
 
-- ✅ **Long Memory:** Retains context effectively for extended interactions.
-- ✅ **Multi-Bot Management:** Easily configure and manage multiple bots within a single framework, perfect for scaling across various use cases
-- ✅ **Isolated Chat Sessions:** Each bot operates within its own session, ensuring interactions remain distinct and contextually relevant without overlap.
-- ✅ **Context-Aware Interactions:**  Utilize enhanced memory capabilities to maintain context over extended dialogues, significantly improving user experience
-- ✅ **Scalable Architecture:** Designed to scale effortlessly with your needs, whether you're handling hundreds of users or just a few.
-- ✅ **Enhanced Customization:** Tailor the behavior to fit specific needs.
-- ✅ **Memory Management:** Efficient handling of chat histories and contexts.
-- ✅ **GPT Vision Support:** Integration Context Aware GPT-powered visual models.
-- ✅ **Different Data Formats:** Supports various data input formats.
-- ✅ **VectorStore Management:** Advanced management of vector storage for efficient retrieval.
+### Core
 
+- ✅ **Dual Mode:** RAG (LCEL chain) for document Q&A, Agent (LangGraph) for tool calling
+- ✅ **Streaming Responses:** Sync (`stream=True`) and async (`aget_response()`) streaming
+- ✅ **Custom Tool Calling:** Register any LangChain `@tool` — built-in web search, document reader, or your own
+- ✅ **Multi-Bot Management:** Isolated bots with independent sessions, data, and configurations
+- ✅ **Persistent Memory:** MongoDB-backed chat history, fully restorable across restarts
+- ✅ **Chat Encryption:** Fernet encryption for stored conversations
+- ✅ **Per-Bot Customization:** Independent LLM, embeddings, retrieval config, and prompt templates per bot
 
-## Diverse Use Cases:
+### Document Ingestion
 
-- ✅ **Enterprise Solutions:** Streamline customer interactions, automate responses, and manage multiple departmental bots from a single platform.
-- ✅ **Educational Platforms:** Enhance learning experiences with AI tutors capable of maintaining context throughout sessions.
-- ✅ **Healthcare Applications:** Support patient management with bots that provide consistent, context-aware interactions.
+- ✅ **PDF, DOCX, CSV, HTML, Markdown, TXT** — auto-detected by extension
+- ✅ **URLs, YouTube, Wikipedia** — via `add_document_from_link()` / `add_document_from_query()`
+- ✅ **Any format** via `use_unstructured=True` (PowerPoint, images, etc.)
 
-## Works for All Langchain Supported LLM and Embeddings
+### RAG Pipeline
+
+- ✅ **FAISS Vector Store** — fast similarity search with batched indexing
+- ✅ **Multi-Query Ensemble Retrieval** — generates alternative queries for better recall
+- ✅ **Self-Improving:** `train_chats()` feeds past Q&A back into the knowledge base
+
+### Vision
+
+- ✅ **GPT-4 Vision Support** — image understanding with context-aware responses
+- ✅ **Vision Chat Sessions** — separate vision chat histories with MongoDB persistence
+
+## Supported LLMs and Embeddings
+
+LongTrainer works with any LangChain-compatible model:
 
 - ✅ OpenAI (default)
-- ✅ VertexAI
-- ✅ HuggingFace
+- ✅ Anthropic
+- ✅ Google VertexAI / Gemini
 - ✅ AWS Bedrock
+- ✅ HuggingFace
 - ✅ Groq
-- ✅ TogetherAI
+- ✅ Together AI
+- ✅ Ollama (local models)
+- ✅ Any `BaseChatModel` implementation
+
+## Use Cases
+
+- **Enterprise Solutions:** Multi-tenant customer support with isolated bots per department
+- **Educational Platforms:** AI tutors that maintain context across sessions
+- **Healthcare Applications:** Context-aware patient interaction with encrypted chat storage
+- **Research Tools:** Agent-powered assistants with web search and custom analysis tools
+- **Knowledge Bases:** Self-improving document Q&A systems
