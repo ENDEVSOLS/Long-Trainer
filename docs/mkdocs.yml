@@ -33,13 +33,14 @@ theme:
     - navigation.sections
     - navigation.expand
     - content.code.copy
-  markdown_extensions:
-    - pymdownx.highlight:
-        use_pygments: true
-        css_class: codehilite
-    - pymdownx.superfences
-    - admonition
-    - pymdownx.details
+
+markdown_extensions:
+  - pymdownx.highlight:
+      use_pygments: true
+      css_class: codehilite
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
 
 extra_css:
   - stylesheets/extra.css
