@@ -2,7 +2,7 @@
   <img src="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/assets/longtrainer-logo.png?raw=true" alt="LongTrainer Logo">
 </p>
 
-<h1 align="center">LongTrainer 1.0.1 — Production-Ready RAG Framework</h1>
+<h1 align="center">LongTrainer 1.1.0 — Production-Ready RAG Framework</h1>
 
 <p align="center">
   <strong>Multi-tenant bots, streaming, tools, and persistent memory — all batteries included.</strong>
@@ -99,7 +99,30 @@ brew install libmagic poppler tesseract qpdf libreoffice pandoc
 
 ## Quick Start 🚀
 
-### RAG Mode (Default) — Simple Document Q&A
+### 1. Zero-Code CLI & API Server (New in 1.1.0!)
+
+If you just want a REST API backed by LongTrainer:
+
+```bash
+# 1. Initialize a new project
+longtrainer init
+
+# (Follow the interactive prompts to select MongoDB, LLM, chunk sizes, etc.)
+
+# 2. Start the API server
+longtrainer serve
+```
+
+This starts a FastAPI server running on `http://localhost:8000` with **16 REST endpoints**, including:
+- `/health`
+- `/bots` (CRUD)
+- `/bots/{id}/documents/path` (Ingest files)
+- `/bots/{id}/chats` (Create sessions)
+- `/bots/{id}/chats/{chat_id}` (Chat and Streaming)
+
+Visit `http://localhost:8000/docs` to see the auto-generated Swagger UI and test the API directly!
+
+### 2. Python SDK — Default RAG Mode
 
 ```python
 from longtrainer.trainer import LongTrainer

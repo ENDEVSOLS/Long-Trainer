@@ -1,6 +1,6 @@
 [project]
 name = "longtrainer"
-version = "1.0.1"
+version = "1.1.0"
 description = "Production-ready RAG framework built on LangChain — multi-tenant chatbots with streaming, tool calling, agent mode, FAISS vector search, and persistent MongoDB memory"
 readme = "README.md"
 license = "MIT"
@@ -66,12 +66,18 @@ dependencies = [
     "wikipedia>=1.4",
     "pandas>=2.2",
     "pydantic>=2.9",
+    "click>=8.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
+cli = ["click>=8.0", "pyyaml>=6.0"]
 agent = ["langgraph>=0.3.10"]
 api = ["fastapi>=0.115", "uvicorn>=0.32"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "ruff>=0.9"]
+
+[project.scripts]
+longtrainer = "longtrainer.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/ENDEVSOLS/Long-Trainer"

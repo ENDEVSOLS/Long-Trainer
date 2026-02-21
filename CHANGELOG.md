@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] — 2026-02-21
+
+### ✨ New Features
+- **Zero-Code CLI**: Introduced `longtrainer` command-line interface. Use `longtrainer init` for interactive project scaffolding (generates `longtrainer.yaml`) and `longtrainer serve` to start the REST API.
+- **FastAPI REST Server**: Shipped a comprehensive built-in API server (`longtrainer.api:app`) with 16 endpoints covering bot management, document ingestion, sync/streaming chat, vision chat, and vector search.
+- **Lazy Initialization**: Trainer instance now defers LLM connection initialization until the first API call, allowing the server to start successfully (`/health` check passes) without an `OPENAI_API_KEY`.
+- **API Documentation**: Auto-generated Swagger UI available at `/docs` when serving the API.
+
+### 📦 Dependencies
+- Added `click>=8.0` and `pyyaml>=6.0` to core dependencies for CLI and configuration management.
+- Added `[cli]` optional dependency group (`click`, `pyyaml`).
+- Automatically installs `fastapi` and `uvicorn` when using the `[api]` extra.
+
 ## [1.0.1] — 2026-02-21
 
 ### Improved
