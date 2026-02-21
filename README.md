@@ -2,7 +2,7 @@
   <img src="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/assets/longtrainer-logo.png?raw=true" alt="LongTrainer Logo">
 </p>
 
-<h1 align="center">LongTrainer 1.0.0 — Production-Ready RAG Framework</h1>
+<h1 align="center">LongTrainer 1.0.1 — Production-Ready RAG Framework</h1>
 
 <p align="center">
   <strong>Multi-tenant bots, streaming, tools, and persistent memory — all batteries included.</strong>
