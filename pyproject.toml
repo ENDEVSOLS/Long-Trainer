@@ -1,15 +1,48 @@
 [project]
 name = "longtrainer"
-version = "1.0.0"
-description = "Production-Ready RAG Framework — Multi-tenant bots, streaming, tools, and persistent memory"
+version = "1.0.1"
+description = "Production-ready RAG framework built on LangChain — multi-tenant chatbots with streaming, tool calling, agent mode, FAISS vector search, and persistent MongoDB memory"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [{ name = "Endevsols", email = "technology@endevsols.com" }]
+keywords = [
+    "rag",
+    "langchain",
+    "chatbot",
+    "llm",
+    "openai",
+    "retrieval-augmented-generation",
+    "vector-database",
+    "faiss",
+    "multi-tenant",
+    "streaming",
+    "agent",
+    "langgraph",
+    "embeddings",
+    "gpt",
+    "conversational-ai",
+    "document-qa",
+    "mongodb",
+    "ai",
+    "nlp",
+    "longtrainer",
+]
 classifiers = [
-    "Programming Language :: Python :: 3",
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Linguistic",
+    "Framework :: FastAPI",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
 ]
 dependencies = [
     "langchain>=0.3.14",
@@ -44,6 +77,8 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "ruff>=0.9"]
 Homepage = "https://github.com/ENDEVSOLS/Long-Trainer"
 Documentation = "https://endevsols.github.io/Long-Trainer/"
 Repository = "https://github.com/ENDEVSOLS/Long-Trainer"
+Changelog = "https://github.com/ENDEVSOLS/Long-Trainer/blob/master/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/ENDEVSOLS/Long-Trainer/issues"
 
 [build-system]
 requires = ["hatchling"]

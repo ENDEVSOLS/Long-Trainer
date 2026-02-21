@@ -2,7 +2,7 @@
   <img src="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/assets/longtrainer-logo.png?raw=true" alt="LongTrainer Logo">
 </p>
 
-<h1 align="center">LongTrainer 1.0.0 — Production-Ready RAG Framework</h1>
+<h1 align="center">LongTrainer 1.0.1 — Production-Ready RAG Framework</h1>
 
 <p align="center">
   <strong>Multi-tenant bots, streaming, tools, and persistent memory — all batteries included.</strong>
@@ -18,8 +18,18 @@
   <a href="https://pepy.tech/project/longtrainer">
     <img src="https://static.pepy.tech/badge/longtrainer/month" alt="Monthly Downloads">
   </a>
+  <a href="https://github.com/ENDEVSOLS/Long-Trainer/stargazers">
+    <img src="https://img.shields.io/github/stars/ENDEVSOLS/Long-Trainer?style=flat" alt="GitHub Stars">
+  </a>
+  <a href="https://github.com/ENDEVSOLS/Long-Trainer/actions/workflows/ci.yml">
+    <img src="https://github.com/ENDEVSOLS/Long-Trainer/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <img src="https://img.shields.io/pypi/pyversions/longtrainer" alt="Python Versions">
   <a href="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/LICENSE">
     <img src="https://img.shields.io/github/license/ENDEVSOLS/Long-Trainer" alt="License">
+  </a>
+  <a href="https://opencollective.com/longtrainer">
+    <img src="https://img.shields.io/opencollective/all/longtrainer?label=sponsors" alt="Open Collective">
   </a>
 </p>
 
@@ -27,7 +37,8 @@
   <a href="https://endevsols.github.io/Long-Trainer/">Documentation</a> •
   <a href="#quick-start-">Quick Start</a> •
   <a href="#features-">Features</a> •
-  <a href="#migration-from-034">Migration from 0.3.4</a>
+  <a href="#migration-from-034">Migration from 0.3.4</a> •
+  <a href="#support-the-project-">Sponsor</a>
 </p>
 
 ---
@@ -285,6 +296,24 @@ pip install --upgrade longtrainer
 ```
 
 The core API (`initialize_bot_id`, `create_bot`, `new_chat`, `get_response`) remains the same — existing code should work with minimal changes. The main difference is `get_response()` now returns `(answer, sources)` instead of `(answer, sources, web_sources)`.
+
+---
+
+## Support the Project 💖
+
+LongTrainer is free and open-source. If it's useful to you, consider sponsoring its development:
+
+<p align="center">
+  <a href="https://opencollective.com/longtrainer">
+    <img src="https://opencollective.com/longtrainer/donate/button@2x.png?color=blue" width="300" alt="Donate to LongTrainer">
+  </a>
+</p>
+
+Your sponsorship helps fund:
+- 🚀 New features (CLI, API server, evaluation tools)
+- 🐛 Bug fixes and maintenance
+- 📖 Documentation and tutorials
+- 🧪 CI/CD infrastructure
 
 ---
 

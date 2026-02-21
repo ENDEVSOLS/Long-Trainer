@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] — 2026-02-21
+
+### Improved
+
+- **PyPI SEO**: Added 20 search keywords and expanded classifiers (3 → 14) for better discoverability
+- **PyPI description**: Now includes key terms (LangChain, FAISS, MongoDB, tool calling, agent mode)
+- **PyPI sidebar**: Added Bug Tracker and Changelog URLs
+
+### Added
+
+- **README badges**: GitHub Stars, CI status, Python versions, Open Collective sponsors count
+- **Sponsor section**: "Support the Project 💖" with Open Collective donate button
+- **FUNDING.yml**: Enables the 💖 Sponsor button on GitHub repo
+- **Sponsor nav link**: Quick access to sponsorship from README header
+
 ## [1.0.0] — 2026-02-18
 
 ### ⚠️ Breaking Changes
