@@ -1,0 +1,13 @@
+mongo_endpoint: mongodb://localhost:27017/
+llm:
+  provider: openai
+  model_name: gpt-4o-mini
+embedding:
+  model_name: text-embedding-3-small
+chunking:
+  chunk_size: 1024
+  chunk_overlap: 100
+encrypt_chats: false
+server:
+  host: 0.0.0.0
+  port: 8000
