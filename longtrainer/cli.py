@@ -163,6 +163,150 @@ def serve(config: str, host: str | None, port: int | None, reload_: bool) -> Non
     )
 
 
+# ─── bot management ───────────────────────────────────────────────────────────
+
+def _get_trainer(config_path: str = "longtrainer.yaml"):
+    import os
+    import yaml
+    from longtrainer.trainer import LongTrainer
+
+    if not os.path.exists(config_path):
+        click.secho(f"❌ Config file '{config_path}' not found. Run 'longtrainer init' first.", fg="red", bold=True)
+        raise SystemExit(1)
+
+    with open(config_path) as f:
+        cfg = yaml.safe_load(f)
+
+    return LongTrainer(
+        mongo_endpoint=cfg.get("mongo_endpoint", "mongodb://localhost:27017/"),
+        chunk_size=cfg.get("chunking", {}).get("chunk_size", 2048),
+        chunk_overlap=cfg.get("chunking", {}).get("chunk_overlap", 200),
+        encrypt_chats=cfg.get("encrypt_chats", False),
+    )
+
+
+@cli.group()
+def bot() -> None:
+    """Manage LongTrainer bots."""
+    pass
+
+
+@bot.command("list")
+@click.option("--config", "-c", default="longtrainer.yaml", help="Path to config file.")
+def bot_list(config: str) -> None:
+    """List all deployed bots."""
+    trainer = _get_trainer(config)
+    bots = list(trainer.bots.find({}, {"_id": 0}))
+    if not bots:
+        click.secho("No bots found.", fg="yellow")
+        return
+
+    click.secho(f"\n🤖 Found {len(bots)} bots:", fg="cyan", bold=True)
+    for b in bots:
+        click.echo(f"  - {b.get('bot_id', 'Unknown')}")
+
+
+@bot.command("create")
+@click.option("--config", "-c", default="longtrainer.yaml", help="Path to config file.")
+@click.option("--prompt", "-p", default=None, help="Custom system prompt.")
+def bot_create(config: str, prompt: str | None) -> None:
+    """Initialize a new empty bot."""
+    trainer = _get_trainer(config)
+    bot_id = trainer.initialize_bot_id()
+    if not bot_id:
+        click.secho("❌ Failed to create bot.", fg="red", bold=True)
+        raise SystemExit(1)
+
+    trainer.create_bot(bot_id, prompt_template=prompt)
+    click.secho(f"✅ Created new bot: {bot_id}", fg="green", bold=True)
+
+
+@bot.command("delete")
+@click.argument("bot_id")
+@click.option("--config", "-c", default="longtrainer.yaml", help="Path to config file.")
+def bot_delete(bot_id: str, config: str) -> None:
+    """Delete a bot and all its data."""
+    trainer = _get_trainer(config)
+    try:
+        trainer.delete_chatbot(bot_id)
+        click.secho(f"🗑️ Deleted bot: {bot_id}", fg="yellow")
+    except ValueError as e:
+        click.secho(f"❌ Error: {e}", fg="red")
+        raise SystemExit(1)
+
+
+# ─── documents ────────────────────────────────────────────────────────────────
+
+@cli.command("add-doc")
+@click.argument("bot_id")
+@click.argument("path")
+@click.option("--config", "-c", default="longtrainer.yaml", help="Path to config file.")
+def add_doc(bot_id: str, path: str, config: str) -> None:
+    """Upload a document to a bot. PATH can be a file path or URL."""
+    trainer = _get_trainer(config)
+
+    try:
+        trainer.load_bot(bot_id)
+    except Exception as e:
+        click.secho(f"❌ Failed to load bot {bot_id}.", fg="red")
+        raise SystemExit(1)
+
+    click.echo(f"⏳ Ingesting '{path}' into {bot_id} ...")
+
+    if path.startswith("http://") or path.startswith("https://"):
+        trainer.add_document_from_link([path], bot_id)
+    else:
+        import os
+        if not os.path.exists(path):
+            click.secho(f"❌ File '{path}' does not exist.", fg="red")
+            raise SystemExit(1)
+        trainer.add_document_from_path(path, bot_id)
+
+    # Refresh the FAISS index by creating the bot again
+    trainer.create_bot(bot_id)
+    click.secho("✅ Document added successfully!", fg="green", bold=True)
+
+
+# ─── chat ─────────────────────────────────────────────────────────────────────
+
+@cli.command("chat")
+@click.argument("bot_id")
+@click.option("--config", "-c", default="longtrainer.yaml", help="Path to config file.")
+def chat_command(bot_id: str, config: str) -> None:
+    """Start an interactive terminal chat with a bot."""
+    trainer = _get_trainer(config)
+
+    click.echo(f"⏳ Loading bot {bot_id} ...")
+    try:
+        trainer.load_bot(bot_id)
+    except Exception as e:
+        click.secho(f"❌ Failed to load bot {bot_id}: {e}", fg="red")
+        raise SystemExit(1)
+
+    chat_id = trainer.new_chat(bot_id)
+
+    click.secho(f"\n💬 Chat session started (ID: {chat_id})", fg="cyan", bold=True)
+    click.secho("Type 'exit' or 'quit' to end the session.\n", fg="cyan")
+
+    while True:
+        try:
+            query = click.prompt(click.style("You", fg="green", bold=True))
+            if query.lower() in ("exit", "quit"):
+                break
+
+            click.secho("Bot: ", fg="blue", bold=True, nl=False)
+
+            for chunk in trainer.get_response(query, bot_id, chat_id, stream=True):
+                click.echo(chunk, nl=False)
+            click.echo()  # Newline after response
+
+        except (KeyboardInterrupt, EOFError):
+            click.echo()
+            break
+
+    click.secho("👋 Session ended.", fg="yellow")
+
+
 def main() -> None:
     """Entry point for the CLI."""
     cli()
