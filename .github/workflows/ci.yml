@@ -46,7 +46,7 @@ jobs:
       - name: Install package
         run: |
           python -m pip install --upgrade pip
-          pip install .[agent,dev]
+          pip install .[agent,dev,cli,api]
 
       - name: Run offline tests
         run: |
@@ -54,3 +54,4 @@ jobs:
           python tests/test_02_loaders.py
           python tests/test_03_tools.py
           python tests/test_04_bot_architecture.py
+          pytest tests/test_05_cli.py tests/test_06_api.py -v

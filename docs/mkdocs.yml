@@ -9,6 +9,7 @@ nav:
     - Creating an Instance: creating_instance.md
     - Creating and Using a Bot: creating_using_bot.md
   - Guides:
+    - CLI & API Server: cli_api.md
     - Agent Mode & Tools: agent_mode.md
     - Chat Management: chat_management.md
     - Supported Formats: supported_formats.md
