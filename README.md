@@ -101,15 +101,26 @@ brew install libmagic poppler tesseract qpdf libreoffice pandoc
 
 ### 1. Zero-Code CLI & API Server (New in 1.1.0!)
 
-If you just want a REST API backed by LongTrainer:
+Manage bots, chat, and run a production API directly from your terminal—no Python required.
 
+#### A. Interactive Terminal Chat
 ```bash
-# 1. Initialize a new project
+# 1. Initialize a new project and generate longtrainer.yaml
 longtrainer init
 
-# (Follow the interactive prompts to select MongoDB, LLM, chunk sizes, etc.)
+# 2. Create a new bot
+longtrainer bot create --prompt "You are a helpful assistant."
 
-# 2. Start the API server
+# 3. Add a document (PDF, link, etc.)
+longtrainer add-doc <bot_id> /path/to/document.pdf
+
+# 4. Start chatting!
+longtrainer chat <bot_id>
+```
+
+#### B. FastAPI REST Server
+Start a production-ready API server backed by your LongTrainer bots:
+```bash
 longtrainer serve
 ```
 

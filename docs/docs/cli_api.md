@@ -42,6 +42,41 @@ Options:
 - `-p, --port INTEGER`: Override the port.
 - `--reload`: Enable auto-reload for development.
 
+### Bot Management
+
+You can directly manage your MongoDB-backed bots from the terminal without starting a Python script.
+
+```bash
+# List all existing bots
+longtrainer bot list
+
+# Create a new, isolated bot
+longtrainer bot create --prompt "You are a helpful assistant."
+
+# Delete a bot and all its vector data/chat history
+longtrainer bot delete <bot_id>
+```
+
+### Document Ingestion
+
+Upload documents or scrape links directly into a bot database from the command line:
+
+```bash
+# Add a local PDF file
+longtrainer add-doc <bot_id> /path/to/document.pdf
+
+# Add a web URL
+longtrainer add-doc <bot_id> https://en.wikipedia.org/wiki/Python_(programming_language)
+```
+
+### Interactive Chat
+
+Start a secure, interactive ChatGPT-like terminal session with any bot. History is saved automatically.
+
+```bash
+longtrainer chat <bot_id>
+```
+
 ---
 
 ## 2. The REST API
