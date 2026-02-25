@@ -44,6 +44,22 @@ trainer = LongTrainer(
 )
 ```
 
+### Vector Store Selection (NEW in V2)
+
+By default, LongTrainer uses local FAISS. You can easily connect to an enterprise vector database:
+Supported names: `faiss`, `pinecone`, `chroma`, `qdrant`, `pgvector`, `mongodb`, `milvus`, `weaviate`, `elasticsearch`
+
+```python
+# Connect to MongoDB Atlas Vector Search
+trainer = LongTrainer(
+    vectorstore_provider="mongodb",
+    vectorstore_kwargs={
+        "connection_string": "mongodb+srv://<username>:<password>@cluster.mongodb.net",
+        "index_name": "vector_index"
+    }
+)
+```
+
 ### With Encryption
 
 When `encrypt_chats=True`, all chat history stored in MongoDB is encrypted using Fernet symmetric encryption. You can provide your own key or let LongTrainer generate one:

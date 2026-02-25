@@ -122,6 +122,129 @@ class DocumentManager:
         except Exception as e:
             print(f"[ERROR] Error adding document from query: {e}")
 
+    def add_document_from_github(self, repo_url: str, bot_id: str, branch: str = "main", access_token: Optional[str] = None) -> None:
+        """Load and store documents from a GitHub repository.
+
+        Args:
+            repo_url: URL or 'owner/repo' string.
+            bot_id: The bot's unique identifier.
+            branch: Repository branch to load.
+            access_token: GitHub Personal Access Token.
+        """
+        try:
+            documents = self.document_loader.load_github_repo(repo_url, branch, access_token)
+            for doc in documents:
+                self.storage.save_document(bot_id, serialize_document(doc))
+            del documents
+            gc.collect()
+        except Exception as e:
+            print(f"[ERROR] Error adding document from GitHub: {e}")
+
+    def add_document_from_notion(self, path: str, bot_id: str) -> None:
+        """Load and store documents from an exported Notion directory.
+
+        Args:
+            path: Path to the unzipped Notion export directory.
+            bot_id: The bot's unique identifier.
+        """
+        try:
+            documents = self.document_loader.load_notion_directory(path)
+            for doc in documents:
+                self.storage.save_document(bot_id, serialize_document(doc))
+            del documents
+            gc.collect()
+        except Exception as e:
+            print(f"[ERROR] Error adding document from Notion: {e}")
+
+    def add_document_from_crawl(self, url: str, bot_id: str, max_depth: int = 2) -> None:
+        """Deep crawl a website and store documents.
+
+        Args:
+            url: The root URL to crawl.
+            bot_id: The bot's unique identifier.
+            max_depth: Maximum recursion depth for crawl.
+        """
+        try:
+            documents = self.document_loader.crawl_website(url, max_depth)
+            for doc in documents:
+                self.storage.save_document(bot_id, serialize_document(doc))
+            del documents
+            gc.collect()
+        except Exception as e:
+            print(f"[ERROR] Error adding document from crawl: {e}")
+
+    def add_document_from_directory(self, path: str, bot_id: str, glob: str = "**/*") -> None:
+        """Load documents recursively from a local directory."""
+        try:
+            documents = self.document_loader.load_directory(path, glob)
+            for doc in documents:
+                self.storage.save_document(bot_id, serialize_document(doc))
+            del documents
+            gc.collect()
+        except Exception as e:
+            print(f"[ERROR] Error adding document from directory: {e}")
+
+    def add_document_from_json(self, path: str, bot_id: str, jq_schema: str = ".") -> None:
+        """Load documents from a JSON or JSONL file."""
+        try:
+            documents = self.document_loader.load_json(path, jq_schema)
+            for doc in documents:
+                self.storage.save_document(bot_id, serialize_document(doc))
+            del documents
+            gc.collect()
+        except Exception as e:
+            print(f"[ERROR] Error adding document from JSON: {e}")
+
+    def add_document_from_aws_s3(self, bucket: str, bot_id: str, prefix: str = "", aws_access_key_id: Optional[str] = None, aws_secret_access_key: Optional[str] = None) -> None:
+        """Load documents from an AWS S3 Directory."""
+        try:
+            documents = self.document_loader.load_aws_s3(bucket, prefix, aws_access_key_id, aws_secret_access_key)
+            for doc in documents:
+                self.storage.save_document(bot_id, serialize_document(doc))
+            del documents
+            gc.collect()
+        except Exception as e:
+            print(f"[ERROR] Error adding document from AWS S3: {e}")
+
+    def add_document_from_google_drive(self, folder_id: str, bot_id: str, credentials_path: str = "credentials.json") -> None:
+        """Load documents from a Google Drive folder."""
+        try:
+            documents = self.document_loader.load_google_drive(folder_id, credentials_path)
+            for doc in documents:
+                self.storage.save_document(bot_id, serialize_document(doc))
+            del documents
+            gc.collect()
+        except Exception as e:
+            print(f"[ERROR] Error adding document from Google Drive: {e}")
+
+    def add_document_from_confluence(self, url: str, username: str, api_key: str, bot_id: str, space_key: Optional[str] = None) -> None:
+        """Load documents from a Confluence Workspace."""
+        try:
+            documents = self.document_loader.load_confluence(url, username, api_key, space_key)
+            for doc in documents:
+                self.storage.save_document(bot_id, serialize_document(doc))
+            del documents
+            gc.collect()
+        except Exception as e:
+            print(f"[ERROR] Error adding document from Confluence: {e}")
+
+    def add_document_from_dynamic_loader(self, bot_id: str, loader_class_name: str, **kwargs) -> None:
+        """Instantiate ANY LangChain document loader dynamically.
+
+        Args:
+            bot_id: The bot's unique identifier.
+            loader_class_name: The exact class name of the LangChain loader (e.g. 'SlackDirectoryLoader').
+            **kwargs: Arguments to pass to the loader's `__init__`.
+        """
+        try:
+            documents = self.document_loader.load_dynamic_loader(loader_class_name, **kwargs)
+            for doc in documents:
+                self.storage.save_document(bot_id, serialize_document(doc))
+            del documents
+            gc.collect()
+        except Exception as e:
+            print(f"[ERROR] Error adding document dynamically: {e}")
+
     def pass_documents(self, documents: list, bot_id: str) -> None:
         """Store pre-loaded LangChain documents.
 

@@ -66,6 +66,33 @@ trainer.add_tool(get_weather, bot_id)
 !!! tip
     Write clear docstrings for your tools — the agent uses them to decide when and how to call each tool.
 
+### Dynamic ZERO-CODE Tools (NEW in V2)
+
+LongTrainer V2 natively integrates LangChain's massive dynamic tool ecosystem. You can inject standard tools using just their string name from `langchain.agents.load_tools`!
+
+```python
+# Pass strings directly to `create_bot`
+trainer.create_bot(
+    "agent-id", 
+    agent_mode=True, 
+    tools=[
+        "tavily_search_results_json", 
+        "wikipedia", 
+        "arxiv", 
+        "PythonREPLTool", 
+        "yahoo_finance_news"
+    ]
+)
+```
+
+LongTrainer will automatically:
+1. Trap the String
+2. Import the correct LangChain package internally
+3. Instantiate the Tool 
+4. Feed it into `bot["tools"].register(t)` 
+
+*These injected tools are fully saved to the MongoDB configuration and will restore perfectly upon restarts!*
+
 ### Global vs Bot-Specific Tools
 
 Tools can be registered globally (available to all bots) or per-bot:

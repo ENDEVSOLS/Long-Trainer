@@ -2,7 +2,7 @@
   <img src="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/assets/longtrainer-logo.png?raw=true" alt="LongTrainer Logo">
 </p>
 
-<h1 align="center">LongTrainer 1.1.0 — Production-Ready RAG Framework</h1>
+<h1 align="center">LongTrainer 1.2.0 — Production-Ready RAG Framework</h1>
 
 <p align="center">
   <strong>Multi-tenant bots, streaming, tools, and persistent memory — all batteries included.</strong>
@@ -99,7 +99,7 @@ brew install libmagic poppler tesseract qpdf libreoffice pandoc
 
 ## Quick Start 🚀
 
-### 1. Zero-Code CLI & API Server (New in 1.1.0!)
+### 1. Zero-Code CLI & API Server (New in 1.2.0!)
 
 Manage bots, chat, and run a production API directly from your terminal—no Python required.
 
@@ -172,6 +172,28 @@ async for chunk in trainer.aget_response("Explain the methodology", bot_id, chat
     print(chunk, end="", flush=True)
 ```
 
+### AgentBot automatically routes questions to tools like web search when necessary.
+
+### 🌟 NEW: Dynamic ZERO CODE Tools
+LongTrainer V2 now integrates LangChain's massive dynamic tool ecosystem **natively**:
+```python
+trainer.create_bot(
+    "agent-id", 
+    agent_mode=True, 
+    tools=["tavily_search_results_json", "wikipedia", "arxiv", "PythonREPLTool", "yahoo_finance_news"]
+)
+```
+
+LongTrainer will dynamically import and initialize ANY string-based tool from `langchain.agents.load_tools` natively on the backend!
+
+You may still register custom tools globally or per-bot explicitly:
+```python
+from langchain.tools import tool
+
+@tool
+def get_weather(location: str):
+```
+
 ### Agent Mode — With Custom Tools
 
 ```python
@@ -240,14 +262,16 @@ trainer.create_bot(
 - ✅ **Chat Encryption:** Fernet encryption for stored conversations
 
 ### Document Ingestion
-- ✅ **PDF, DOCX, CSV, HTML, Markdown, TXT** — auto-detected by extension
-- ✅ **URLs, YouTube, Wikipedia** — via `add_document_from_link()` / `add_document_from_query()`
-- ✅ **Any format** via `use_unstructured=True` (PowerPoint, images, etc.)
+- ✅ **Standard Formats:** PDF, DOCX, CSV, HTML, Markdown, TXT
+- ✅ **Web & Crawling:** `add_document_from_link()`, `add_document_from_query()`, `add_document_from_crawl()`
+- ✅ **Cloud & Enterprise:** S3 (`add_document_from_aws_s3`), Google Drive (`add_document_from_google_drive`), Confluence (`add_document_from_confluence`)
+- ✅ **Structued Data:** Local Directory (`add_document_from_directory`), JSON & JQ (`add_document_from_json`), GitHub Repo (`add_document_from_github`)
+- ✅ **Dynamic Integrations:** Inject ANY LangChain document loader class dynamically via `add_document_from_dynamic_loader()`
 
-### RAG Pipeline
-- ✅ **FAISS Vector Store** — fast similarity search with batched indexing
-- ✅ **Multi-Query Ensemble Retrieval** — generates alternative queries for better recall
-- ✅ **Self-Improving:** `train_chats()` feeds past Q&A back into the knowledge base
+### RAG Pipeline & Vector DBs
+- ✅ **Vector Databases:** FAISS, Pinecone, Chroma, Qdrant, **PGVector, MongoDB Atlas, Milvus, Elasticsearch, Weaviate**
+- ✅ **Multi-Query Ensemble Retrieval:** Generates alternative queries for better recall
+- ✅ **Self-Improving Memory:** `train_chats()` feeds past Q&A back into the knowledge base
 
 ### Customization
 - ✅ **Per-bot LLM** — use different models for different bots

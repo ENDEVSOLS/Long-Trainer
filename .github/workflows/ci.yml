@@ -21,7 +21,7 @@ jobs:
         run: pip install flake8
 
       - name: Check for syntax errors
-        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        run: flake8 longtrainer tests --count --select=E9,F63,F7,F82 --show-source --statistics
 
   test:
     name: Test (Python ${{ matrix.python-version }})
@@ -54,4 +54,4 @@ jobs:
           python tests/test_02_loaders.py
           python tests/test_03_tools.py
           python tests/test_04_bot_architecture.py
-          pytest tests/test_05_cli.py tests/test_06_api.py -v
+          pytest tests/test_05_cli.py tests/test_06_api.py tests/test_07_advanced_loaders.py tests/test_08_dynamic_tools.py -v
