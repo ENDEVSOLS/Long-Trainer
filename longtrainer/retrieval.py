@@ -12,7 +12,9 @@ from typing import Optional
 
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseLanguageModel
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.retrievers import BaseRetriever
@@ -74,8 +76,6 @@ class MultiQueryEnsembleRetriever(BaseRetriever):
                         seen_contents.add(doc.page_content)
             except Exception:
                 continue
-
-        return all_docs
 
         return all_docs
 
