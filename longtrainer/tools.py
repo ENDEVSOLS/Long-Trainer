@@ -6,9 +6,10 @@ for web search and document reading.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, List, Union
 
 from langchain_core.tools import BaseTool, tool
+from langchain_community.agent_toolkits.load_tools import load_tools
 from duckduckgo_search import DDGS
 
 
@@ -155,10 +156,64 @@ def document_reader(file_path: str) -> str:
         return f"Error reading document: {e}"
 
 
-def get_builtin_tools() -> list[BaseTool]:
-    """Get the list of built-in tools.
+def load_dynamic_tools(tool_names: List[str], **kwargs) -> List[BaseTool]:
+    """Dynamically load any LangChain built-in tools by string name.
+
+    Args:
+        tool_names: List of tool names (e.g. ['arxiv', 'wikipedia', 'python_repl']).
+        **kwargs: Options to pass down (e.g., llm for certain tools).
 
     Returns:
-        List containing web_search and document_reader tools.
+        A list of initialized BaseTool objects.
+    """
+    try:
+        return load_tools(tool_names, **kwargs)
+    except Exception as e:
+        print(f"[ERROR] Error loading dynamic tools {tool_names}: {e}")
+        return []
+
+def get_wikipedia_tool() -> BaseTool:
+    """Get the Wikipedia tool."""
+    tools = load_dynamic_tools(["wikipedia"])
+    return tools[0] if tools else None
+
+def get_arxiv_tool() -> BaseTool:
+    """Get the Arxiv tool."""
+    tools = load_dynamic_tools(["arxiv"])
+    return tools[0] if tools else None
+
+def get_python_repl_tool() -> BaseTool:
+    """Get the Python REPL tool."""
+    try:
+        from langchain_experimental.tools.python.tool import PythonREPLTool
+        return PythonREPLTool()
+    except ImportError:
+        print("[ERROR] Please install langchain-experimental for PythonREPLTool: pip install langchain-experimental")
+        return None
+
+def get_yahoo_finance_tool() -> BaseTool:
+    """Get the Yahoo Finance News tool."""
+    try:
+        from langchain_community.tools.yahoo_finance_news import YahooFinanceNewsTool
+        return YahooFinanceNewsTool()
+    except ImportError:
+        print("[ERROR] Please install yfinance to use the Yahoo Finance Tool: pip install yfinance")
+        return None
+
+def get_tavily_search_tool() -> BaseTool:
+    """Get the Tavily Search tool."""
+    try:
+        from langchain_community.tools.tavily_search import TavilySearchResults
+        return TavilySearchResults()
+    except ImportError:
+        print("[ERROR] Please install langchain-community and set TAVILY_API_KEY for Tavily search.")
+        return None
+
+
+def get_builtin_tools() -> list[BaseTool]:
+    """Get the default list of safe built-in tools.
+
+    Returns:
+        List containing web_search (DDG) and document_reader tools.
     """
     return [web_search, document_reader]

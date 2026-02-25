@@ -66,9 +66,9 @@ class MongoStorage:
 
     # ─── Bot Persistence ──────────────────────────────────────────────────────
 
-    def save_bot(self, bot_id: str, faiss_path: str) -> None:
+    def save_bot(self, bot_id: str, db_path: str) -> None:
         """Insert a new bot record."""
-        self.bots.insert_one({"bot_id": bot_id, "faiss_path": faiss_path})
+        self.bots.insert_one({"bot_id": bot_id, "db_path": db_path})
 
     def find_bot(self, bot_id: str) -> Optional[dict]:
         """Find a bot config by ID."""

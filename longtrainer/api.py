@@ -41,6 +41,12 @@ def _get_trainer():
 
     _trainer = LongTrainer(
         mongo_endpoint=cfg.get("mongo_endpoint", "mongodb://localhost:27017/"),
+        llm_provider=cfg.get("llm", {}).get("provider", "openai"),
+        default_llm=cfg.get("llm", {}).get("model_name", "gpt-4o-2024-08-06"),
+        embedding_provider=cfg.get("embedding", {}).get("provider", "openai"),
+        embedding_model_name=cfg.get("embedding", {}).get("model_name", "text-embedding-3-small"),
+        vector_store_provider=cfg.get("vector_store", {}).get("provider", "faiss"),
+        vector_store_kwargs=cfg.get("vector_store", {}).get("kwargs", {}),
         chunk_size=cfg.get("chunking", {}).get("chunk_size", 2048),
         chunk_overlap=cfg.get("chunking", {}).get("chunk_overlap", 200),
         encrypt_chats=cfg.get("encrypt_chats", False),
@@ -77,6 +83,7 @@ app.add_middleware(
 class CreateBotRequest(BaseModel):
     prompt_template: Optional[str] = None
     agent_mode: bool = False
+    tools: Optional[list[str]] = None
 
 
 class DocumentPathRequest(BaseModel):
@@ -143,6 +150,7 @@ async def build_bot(bot_id: str, req: CreateBotRequest):
             bot_id=bot_id,
             prompt_template=req.prompt_template,
             agent_mode=req.agent_mode,
+            tools=req.tools,
         )
         return {"status": "ok", "bot_id": bot_id}
     except Exception as e:

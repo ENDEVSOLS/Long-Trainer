@@ -30,11 +30,13 @@ from longtrainer.chat import ChatManager, build_chat_prompt
 from longtrainer.config import LongTrainerConfig, _DEFAULT_SYSTEM_PROMPT
 from longtrainer.documents import DocumentManager
 from longtrainer.loaders import DocumentLoader, TextSplitter
-from longtrainer.retrieval import DocumentRetriever
+from longtrainer.retrieval import MultiQueryEnsembleRetriever
+from longtrainer.vectorstores import get_vectorstore, save_vectorstore, delete_vectorstore
 from longtrainer.storage import MongoStorage
 from longtrainer.tools import ToolRegistry, get_builtin_tools
 from longtrainer.utils import deserialize_document, serialize_document
 from longtrainer.vision_bot import VisionBot, VisionMemory
+from longtrainer.models import get_llm, get_embedding_model
 
 
 class LongTrainer:
@@ -59,6 +61,11 @@ class LongTrainer:
         mongo_endpoint: str = "mongodb://localhost:27017/",
         llm: Optional[BaseChatModel] = None,
         embedding_model: Optional[Embeddings] = None,
+        llm_provider: str = "openai",
+        default_llm: str = "gpt-4o-2024-08-06",
+        embedding_provider: str = "openai",
+        embedding_model_name: str = "text-embedding-3-small",
+        vector_store_provider: str = "faiss",
         prompt_template: Optional[str] = None,
         max_token_limit: int = 32000,
         num_k: int = 3,
@@ -69,8 +76,8 @@ class LongTrainer:
         encryption_key: Optional[bytes] = None,
     ) -> None:
         # Models
-        self.llm = llm or ChatOpenAI(model_name="gpt-4o-2024-08-06")
-        self.embedding_model = embedding_model or OpenAIEmbeddings()
+        self.llm = llm or get_llm(llm_provider, default_llm)
+        self.embedding_model = embedding_model or get_embedding_model(embedding_provider, embedding_model_name)
         self.prompt_template = prompt_template or _DEFAULT_SYSTEM_PROMPT
         self.prompt = build_chat_prompt(self.prompt_template)
         self.k = num_k
@@ -80,6 +87,12 @@ class LongTrainer:
         # Internal config
         self._config = LongTrainerConfig(
             mongo_endpoint=mongo_endpoint,
+            llm_provider=llm_provider,
+            default_llm=default_llm,
+            embedding_provider=embedding_provider,
+            embedding_model=embedding_model_name,
+            vector_store_provider=vector_store_provider,
+            vector_store_kwargs=vector_store_kwargs or {},
             prompt_template=self.prompt_template,
             max_token_limit=max_token_limit,
             num_k=num_k,
@@ -129,12 +142,13 @@ class LongTrainer:
                 "chains": {},
                 "assistants": {},
                 "retriever": None,
+                "vectorstore": None,
                 "ensemble_retriever": None,
-                "faiss_path": f"faiss_index_{bot_id}",
+                "db_path": f"db_{bot_id}",
                 "agent_mode": False,
                 "tools": ToolRegistry(),
             }
-            self._storage.save_bot(bot_id, self.bot_data[bot_id]["faiss_path"])
+            self._storage.save_bot(bot_id, self.bot_data[bot_id]["db_path"])
             return bot_id
         except Exception as e:
             print(f"[ERROR] Error initializing bot: {e}")
@@ -145,7 +159,7 @@ class LongTrainer:
         bot_id: str,
         prompt_template: Optional[str] = None,
         agent_mode: bool = False,
-        tools: Optional[list[BaseTool]] = None,
+        tools: Optional[list] = None,
         llm: Optional[BaseChatModel] = None,
         embedding_model: Optional[Embeddings] = None,
         num_k: Optional[int] = None,
@@ -177,28 +191,50 @@ class LongTrainer:
             bot["agent_mode"] = agent_mode
 
             if tools:
+                from longtrainer.tools import load_dynamic_tools
+                dynamic_tool_names = [t for t in tools if isinstance(t, str)]
+                if dynamic_tool_names:
+                    dynamic_tools = load_dynamic_tools(dynamic_tool_names)
+                    for t in dynamic_tools:
+                        if not bot["tools"].has_tool(t.name):
+                            bot["tools"].register(t)
                 for t in tools:
-                    bot["tools"].register(t)
+                    if not isinstance(t, str):
+                        if not bot["tools"].has_tool(t.name):
+                            bot["tools"].register(t)
 
             documents = self._doc_manager.get_documents(bot_id)
             all_splits = self.text_splitter.split_documents(documents)
 
-            bot["retriever"] = DocumentRetriever(
-                documents=all_splits,
-                embedding_model=bot_embedding,
-                llm=bot_llm,
-                ensemble=self.ensemble,
-                existing_faiss_index=(
-                    bot["retriever"].faiss_index if bot["retriever"] else None
-                ),
-                num_k=bot_k,
+            bot["vectorstore"] = get_vectorstore(
+                provider=self._config.vector_store_provider,
+                embedding=bot_embedding,
+                collection_name=bot_id,
+                persist_directory=bot["db_path"],
+                **self._config.vector_store_kwargs,
             )
-            bot["retriever"].save_index(file_path=bot["faiss_path"])
-            bot["ensemble_retriever"] = bot["retriever"].retrieve_documents()
+
+            if all_splits:
+                bot["vectorstore"].add_documents(all_splits)
+                save_vectorstore(bot["vectorstore"], self._config.vector_store_provider, bot["db_path"])
+
+            base_retriever = bot["vectorstore"].as_retriever(search_kwargs={"k": bot_k})
+
+            if self.ensemble:
+                bot["ensemble_retriever"] = MultiQueryEnsembleRetriever(
+                    base_retriever=base_retriever,
+                    llm=bot_llm,
+                    k=bot_k,
+                )
+            else:
+                bot["ensemble_retriever"] = base_retriever
+
+            bot["retriever"] = bot["ensemble_retriever"]
 
             self._storage.update_bot(bot_id, {
                 "prompt_template": pt,
                 "agent_mode": agent_mode,
+                "dynamic_tools": dynamic_tool_names if tools else [],
             })
 
             del documents, all_splits
@@ -227,42 +263,57 @@ class LongTrainer:
                 print(f"No configuration found for {bot_id}. Initializing new bot...")
                 bot_config = {
                     "bot_id": bot_id,
-                    "faiss_path": f"faiss_index_{bot_id}",
+                    "db_path": f"db_{bot_id}",
                     "prompt_template": self.prompt_template,
                     "agent_mode": False,
                 }
-                self._storage.save_bot(bot_id, bot_config["faiss_path"])
+                self._storage.save_bot(bot_id, bot_config["db_path"])
 
             self.bot_data[bot_id] = {
                 "chains": {},
                 "assistants": {},
                 "retriever": None,
+                "vectorstore": None,
                 "ensemble_retriever": None,
-                "faiss_path": bot_config["faiss_path"],
+                "db_path": bot_config.get("db_path", bot_config.get("faiss_path", f"db_{bot_id}")),
                 "prompt_template": bot_config.get("prompt_template", self.prompt_template),
                 "agent_mode": bot_config.get("agent_mode", False),
                 "tools": ToolRegistry(),
             }
 
             bot = self.bot_data[bot_id]
+            
+            # Restore dynamic tools
+            dynamic_tools_list = bot_config.get("dynamic_tools", [])
+            if dynamic_tools_list:
+                from longtrainer.tools import load_dynamic_tools
+                dynamic_tools = load_dynamic_tools(dynamic_tools_list)
+                for t in dynamic_tools:
+                    if not bot["tools"].has_tool(t.name):
+                        bot["tools"].register(t)
+                        
             bot["prompt"] = build_chat_prompt(bot["prompt_template"])
 
-            faiss_path = bot["faiss_path"]
-            faiss_index = None
-            if os.path.exists(faiss_path):
-                faiss_index = FAISS.load_local(
-                    faiss_path, self.embedding_model, allow_dangerous_deserialization=True
-                )
-
-            bot["retriever"] = DocumentRetriever(
-                documents=[],
-                embedding_model=self.embedding_model,
-                llm=self.llm,
-                ensemble=self.ensemble,
-                existing_faiss_index=faiss_index,
-                num_k=self.k,
+            bot["vectorstore"] = get_vectorstore(
+                provider=self._config.vector_store_provider,
+                embedding=self.embedding_model,
+                collection_name=bot_id,
+                persist_directory=bot["db_path"],
+                **self._config.vector_store_kwargs,
             )
-            bot["ensemble_retriever"] = bot["retriever"].retrieve_documents()
+
+            base_retriever = bot["vectorstore"].as_retriever(search_kwargs={"k": self.k})
+
+            if self.ensemble:
+                bot["ensemble_retriever"] = MultiQueryEnsembleRetriever(
+                    base_retriever=base_retriever,
+                    llm=self.llm,
+                    k=self.k,
+                )
+            else:
+                bot["ensemble_retriever"] = base_retriever
+
+            bot["retriever"] = bot["ensemble_retriever"]
 
             load_chat_history = self._storage.list_chats(bot_id)
 
@@ -324,8 +375,7 @@ class LongTrainer:
         self._storage.delete_bot(bot_id)
 
         bot = self.bot_data[bot_id]
-        if bot["retriever"]:
-            bot["retriever"].delete_index(file_path=bot["faiss_path"])
+        delete_vectorstore(self._config.vector_store_provider, bot_id, bot["db_path"])
         del self.bot_data[bot_id]
 
         data_folder = f"./data-{bot_id}"
@@ -361,12 +411,65 @@ class LongTrainer:
             raise ValueError(f"Bot ID {bot_id} not found.")
         self._doc_manager.add_document_from_query(search_query, bot_id)
 
+    def add_document_from_github(self, repo_url: str, bot_id: str, branch: str = "main", access_token: Optional[str] = None) -> None:
+        """Load and store documents from a GitHub repository."""
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+        self._doc_manager.add_document_from_github(repo_url, bot_id, branch, access_token)
+
+    def add_document_from_notion(self, path: str, bot_id: str) -> None:
+        """Load and store documents from an exported Notion directory."""
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+        self._doc_manager.add_document_from_notion(path, bot_id)
+
+    def add_document_from_crawl(self, url: str, bot_id: str, max_depth: int = 2) -> None:
+        """Deep crawl a website and store documents."""
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+        self._doc_manager.add_document_from_crawl(url, bot_id, max_depth)
+
+    def add_document_from_dynamic_loader(self, bot_id: str, loader_class_name: str, **kwargs) -> None:
+        """Instantiate ANY LangChain document loader dynamically."""
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+        self._doc_manager.add_document_from_dynamic_loader(bot_id, loader_class_name, **kwargs)
+
+    def add_document_from_directory(self, path: str, bot_id: str, glob: str = "**/*") -> None:
+        """Load documents recursively from a local directory."""
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+        self._doc_manager.add_document_from_directory(path, bot_id, glob)
+
+    def add_document_from_json(self, path: str, bot_id: str, jq_schema: str = ".") -> None:
+        """Load documents from a JSON or JSONL file."""
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+        self._doc_manager.add_document_from_json(path, bot_id, jq_schema)
+
+    def add_document_from_aws_s3(self, bucket: str, bot_id: str, prefix: str = "", aws_access_key_id: Optional[str] = None, aws_secret_access_key: Optional[str] = None) -> None:
+        """Load documents from an AWS S3 Directory."""
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+        self._doc_manager.add_document_from_aws_s3(bucket, bot_id, prefix, aws_access_key_id, aws_secret_access_key)
+
+    def add_document_from_google_drive(self, folder_id: str, bot_id: str, credentials_path: str = "credentials.json") -> None:
+        """Load documents from a Google Drive folder."""
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+        self._doc_manager.add_document_from_google_drive(folder_id, bot_id, credentials_path)
+
+    def add_document_from_confluence(self, url: str, username: str, api_key: str, bot_id: str, space_key: Optional[str] = None) -> None:
+        """Load documents from a Confluence Workspace."""
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+        self._doc_manager.add_document_from_confluence(url, username, api_key, bot_id, space_key)
+
     def pass_documents(self, documents: list, bot_id: str) -> None:
         """Store pre-loaded LangChain documents."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
         self._doc_manager.pass_documents(documents, bot_id)
-
     # ─── Tool Management ──────────────────────────────────────────────────────
 
     def add_tool(self, tool: BaseTool, bot_id: Optional[str] = None) -> None:

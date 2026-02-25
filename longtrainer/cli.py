@@ -42,10 +42,27 @@ def cli() -> None:
     help="Model name for the chosen provider.",
 )
 @click.option(
+    "--embedding-provider",
+    prompt="Embedding provider",
+    type=click.Choice(["openai", "ollama", "huggingface", "cohere"], case_sensitive=False),
+    default="openai",
+    help="Embedding provider to use.",
+)
+@click.option(
     "--embedding-model",
     prompt="Embedding model",
     default="text-embedding-3-small",
     help="Embedding model name.",
+)
+@click.option(
+    "--vectorstore-provider",
+    prompt="Vector Store provider",
+    default="faiss",
+    type=click.Choice([
+        "faiss", "pinecone", "chroma", "qdrant", 
+        "pgvector", "mongodb", "milvus", "weaviate", "elasticsearch"
+    ]),
+    help="Provider for vector database.",
 )
 @click.option(
     "--chunk-size",
@@ -77,7 +94,9 @@ def init(
     mongo: str,
     llm_provider: str,
     model_name: str,
+    embedding_provider: str,
     embedding_model: str,
+    vectorstore_provider: str,
     chunk_size: int,
     chunk_overlap: int,
     encrypt_chats: bool,
@@ -93,7 +112,11 @@ def init(
             "model_name": model_name,
         },
         "embedding": {
+            "provider": embedding_provider,
             "model_name": embedding_model,
+        },
+        "vector_store": {
+            "provider": vectorstore_provider,
         },
         "chunking": {
             "chunk_size": chunk_size,
@@ -179,6 +202,10 @@ def _get_trainer(config_path: str = "longtrainer.yaml"):
 
     return LongTrainer(
         mongo_endpoint=cfg.get("mongo_endpoint", "mongodb://localhost:27017/"),
+        llm_provider=cfg.get("llm", {}).get("provider", "openai"),
+        default_llm=cfg.get("llm", {}).get("model_name", "gpt-4o-2024-08-06"),
+        embedding_provider=cfg.get("embedding", {}).get("provider", "openai"),
+        embedding_model_name=cfg.get("embedding", {}).get("model_name", "text-embedding-3-small"),
         chunk_size=cfg.get("chunking", {}).get("chunk_size", 2048),
         chunk_overlap=cfg.get("chunking", {}).get("chunk_overlap", 200),
         encrypt_chats=cfg.get("encrypt_chats", False),
@@ -209,7 +236,9 @@ def bot_list(config: str) -> None:
 @bot.command("create")
 @click.option("--config", "-c", default="longtrainer.yaml", help="Path to config file.")
 @click.option("--prompt", "-p", default=None, help="Custom system prompt.")
-def bot_create(config: str, prompt: str | None) -> None:
+@click.option("--agent", is_flag=True, default=False, help="Enable Agent mode with tool calling.")
+@click.option("--tools", "-t", default=None, help="Comma-separated list of tools (e.g. 'wikipedia,arxiv').")
+def bot_create(config: str, prompt: str | None, agent: bool, tools: str | None) -> None:
     """Initialize a new empty bot."""
     trainer = _get_trainer(config)
     bot_id = trainer.initialize_bot_id()
@@ -217,7 +246,14 @@ def bot_create(config: str, prompt: str | None) -> None:
         click.secho("❌ Failed to create bot.", fg="red", bold=True)
         raise SystemExit(1)
 
-    trainer.create_bot(bot_id, prompt_template=prompt)
+    tool_list = [t.strip() for t in tools.split(",")] if tools else []
+    
+    trainer.create_bot(
+        bot_id=bot_id, 
+        prompt_template=prompt, 
+        agent_mode=agent, 
+        tools=tool_list if tool_list else None
+    )
     click.secho(f"✅ Created new bot: {bot_id}", fg="green", bold=True)
 
 

@@ -35,7 +35,9 @@ def test_cli_init_command(tmp_path):
             "--mongo", "mongodb://test:27017/",
             "--llm-provider", "openai",
             "--model-name", "gpt-4o-mini",
+            "--embedding-provider", "openai",
             "--embedding-model", "text-embedding-3-small",
+            "--vectorstore-provider", "pinecone",
             "--chunk-size", "1024",
             "--chunk-overlap", "100",
             "--encrypt-chats",
@@ -55,6 +57,9 @@ def test_cli_init_command(tmp_path):
     assert config["mongo_endpoint"] == "mongodb://test:27017/"
     assert config["llm"]["provider"] == "openai"
     assert config["llm"]["model_name"] == "gpt-4o-mini"
+    assert config["embedding"]["provider"] == "openai"
+    assert config["embedding"]["model_name"] == "text-embedding-3-small"
+    assert config["vector_store"]["provider"] == "pinecone"
     assert config["chunking"]["chunk_size"] == 1024
     assert config["chunking"]["chunk_overlap"] == 100
     assert config["encrypt_chats"] is True

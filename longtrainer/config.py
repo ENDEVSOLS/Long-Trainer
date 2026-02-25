@@ -38,6 +38,12 @@ class LongTrainerConfig(BaseModel):
     """
 
     mongo_endpoint: str = "mongodb://localhost:27017/"
+    llm_provider: str = "openai"
+    default_llm: str = "gpt-4o-2024-08-06"
+    embedding_provider: str = "openai"
+    embedding_model: str = "text-embedding-3-small"
+    vector_store_provider: str = "faiss"
+    vector_store_kwargs: dict = Field(default_factory=dict)
     prompt_template: str = _DEFAULT_SYSTEM_PROMPT
     max_token_limit: int = 32000
     num_k: int = 3

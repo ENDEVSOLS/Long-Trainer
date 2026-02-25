@@ -1,6 +1,6 @@
 # Zero-Code CLI & API Server
 
-LongTrainer 1.1.0 introduces a built-in CLI and FastAPI REST server. This transforms LongTrainer from a Python library into a standalone, language-agnostic document Q&A service.
+LongTrainer 2.0.0 introduces a built-in CLI and FastAPI REST server. This transforms LongTrainer from a Python library into a standalone, language-agnostic document Q&A service.
 
 You can now chat with your documents from Javascript, Go, mobile apps, or no-code tools without writing any Python backend code.
 
