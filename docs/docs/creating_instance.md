@@ -54,7 +54,7 @@ Supported names: `faiss`, `pinecone`, `chroma`, `qdrant`, `pgvector`, `mongodb`,
 trainer = LongTrainer(
     vectorstore_provider="mongodb",
     vectorstore_kwargs={
-        "connection_string": "mongodb+srv://user:pass@cluster.mongodb.net",
+        "connection_string": "mongodb+srv://<username>:<password>@cluster.mongodb.net",
         "index_name": "vector_index"
     }
 )
