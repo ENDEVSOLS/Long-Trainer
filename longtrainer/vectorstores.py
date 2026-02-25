@@ -241,6 +241,7 @@ def delete_vectorstore(provider: str, collection_name: str, persist_directory: s
             from qdrant_client import QdrantClient
             # We assume in-memory or default local if no env vars.
             # In production, users should manage remote collections carefully.
+            client = QdrantClient(path=persist_directory)
             if client.collection_exists(collection_name):
                 client.delete_collection(collection_name)
         except Exception as e:
