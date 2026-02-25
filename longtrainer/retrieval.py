@@ -77,5 +77,48 @@ class MultiQueryEnsembleRetriever(BaseRetriever):
 
         return all_docs
 
+        return all_docs
 
 
+class DocumentRetriever:
+    """Wrapper class to manage FAISS indices and ensemble retrieval."""
+
+    def __init__(
+        self,
+        documents: list[Document],
+        embedding_model: Embeddings,
+        llm: Optional[BaseChatModel] = None,
+        ensemble: bool = False,
+        existing_faiss_index=None,
+        num_k: int = 3,
+    ):
+        self.embedding_model = embedding_model
+        self.llm = llm
+        self.ensemble = ensemble
+        self.k = num_k
+
+        if existing_faiss_index:
+            self.faiss_index = existing_faiss_index
+            self.faiss_index.add_documents(documents)
+        else:
+            from langchain_community.vectorstores import FAISS
+            self.faiss_index = FAISS.from_documents(documents, self.embedding_model)
+
+    def retrieve_documents(self) -> BaseRetriever:
+        """Returns the configured retriever (base FAISS or Ensemble)."""
+        base_retriever = self.faiss_index.as_retriever(search_kwargs={"k": self.k})
+        if self.ensemble and self.llm:
+            return MultiQueryEnsembleRetriever(
+                base_retriever=base_retriever, llm=self.llm, k=self.k
+            )
+        return base_retriever
+
+    def update_index(self, new_documents: list[Document]):
+        """Adds new documents to the existing FAISS index."""
+        if self.faiss_index:
+            self.faiss_index.add_documents(new_documents)
+
+    def save_index(self, file_path: str):
+        """Saves the underlying FAISS index locally."""
+        if self.faiss_index:
+            self.faiss_index.save_local(file_path)

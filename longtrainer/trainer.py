@@ -30,7 +30,7 @@ from longtrainer.chat import ChatManager, build_chat_prompt
 from longtrainer.config import LongTrainerConfig, _DEFAULT_SYSTEM_PROMPT
 from longtrainer.documents import DocumentManager
 from longtrainer.loaders import DocumentLoader, TextSplitter
-from longtrainer.retrieval import DocumentRetriever, MultiQueryEnsembleRetriever
+from longtrainer.retrieval import MultiQueryEnsembleRetriever
 from longtrainer.vectorstores import get_vectorstore, save_vectorstore, delete_vectorstore
 from longtrainer.storage import MongoStorage
 from longtrainer.tools import ToolRegistry, get_builtin_tools
