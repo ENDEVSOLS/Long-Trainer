@@ -357,23 +357,6 @@ The core API (`initialize_bot_id`, `create_bot`, `new_chat`, `get_response`) rem
 
 ---
 
-## Support the Project 💖
-
-LongTrainer is free and open-source. If it's useful to you, consider sponsoring its development:
-
-<p align="center">
-  <a href="https://opencollective.com/longtrainer">
-    <img src="https://opencollective.com/longtrainer/donate/button@2x.png?color=blue" width="300" alt="Donate to LongTrainer">
-  </a>
-</p>
-
-Your sponsorship helps fund:
-- 🚀 New features (CLI, API server, evaluation tools)
-- 🐛 Bug fixes and maintenance
-- 📖 Documentation and tutorials
-- 🧪 CI/CD infrastructure
-
----
 
 ## Citation
 
