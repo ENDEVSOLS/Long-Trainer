@@ -541,13 +541,14 @@ class LongTrainer:
         stream: bool = False,
         uploaded_files: Optional[list[dict]] = None,
         web_search: bool = False,
+        schema: Optional[dict] = None,
     ) -> Union[tuple[str, list[str]], Iterator[str]]:
         """Get a response from the chatbot."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
         return self._chat_manager.get_response(
             query, bot_id, chat_id, self.bot_data[bot_id],
-            stream, uploaded_files, web_search,
+            stream, uploaded_files, web_search, schema=schema,
         )
 
     async def aget_response(

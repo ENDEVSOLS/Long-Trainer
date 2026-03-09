@@ -116,10 +116,15 @@ Below is a quick reference of the available endpoints. All API requests process 
   {
     "query": "What does the document say?",
     "stream": false,
-    "web_search": false
+    "web_search": false,
+    "schema": {
+      "type": "object",
+      "properties": { "summary": { "type": "string" } },
+      "required": ["summary"]
+    }
   }
   ```
-  *Note: If `"stream": true` is passed, the endpoint returns an SSE (Server-Sent Events) streaming response.*
+  *Note: If `"schema"` is passed, the endpoint returns a validated JSON object. If `"stream": true` is passed, it returns an SSE streaming response (cannot be combined with schema).*
 * `GET /chats/{chat_id}` — Retrieve the full conversation history.
 
 #### Vision Chat

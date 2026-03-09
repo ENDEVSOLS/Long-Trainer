@@ -25,3 +25,4 @@ testing-folder/
 # Lock file
 uv.lock
 longtrainer.yaml
+db_bot-*/

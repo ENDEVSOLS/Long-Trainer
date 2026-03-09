@@ -21,7 +21,7 @@ import yaml
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # P3-7: Rate limiting — graceful fallback if slowapi is not installed
 try:
@@ -86,20 +86,20 @@ async def lifespan(application: FastAPI):
 
 # ─── H2: Tenant-Aware API Key Authentication ─────────────────────────────────
 
-_AUTH_ENABLED = bool(os.environ.get("LONGTRAINER_API_KEY"))
+_API_KEY_AUTH_ENABLED = bool(os.environ.get("SERVER_AUTH_KEY"))
 
 
 async def _authenticate(request: Request, x_api_key: Optional[str] = Header(default=None)):
     """FastAPI dependency: validate API key and extract tenant_id.
 
-    When LONGTRAINER_API_KEY env var is set, auth is required.
+    When SERVER_AUTH_KEY env var is set, auth is required.
     If an `api_keys` collection exists in MongoDB with {key, tenant_id},
     the tenant_id is extracted and injected into request.state.
     Otherwise falls back to a default tenant.
 
-    When LONGTRAINER_API_KEY is NOT set, auth is disabled (backwards-compatible).
+    When SERVER_AUTH_KEY is NOT set, auth is disabled (backwards-compatible).
     """
-    if not _AUTH_ENABLED:
+    if not _API_KEY_AUTH_ENABLED:
         request.state.tenant_id = "default"
         return
 
@@ -115,7 +115,7 @@ async def _authenticate(request: Request, x_api_key: Optional[str] = Header(defa
         return
 
     # Fallback: check against the global env var key
-    if x_api_key == os.environ.get("LONGTRAINER_API_KEY"):
+    if x_api_key == os.environ.get("SERVER_AUTH_KEY"):
         request.state.tenant_id = "default"
         return
 
@@ -186,6 +186,14 @@ class ChatRequest(BaseModel):
     stream: bool = False
     web_search: bool = False
     uploaded_files: Optional[list[dict]] = None
+    schema_: Optional[dict] = Field(None, alias="schema")
+    model_config = {"populate_by_name": True}
+
+    @model_validator(mode="after")
+    def check_stream_schema_conflict(self):
+        if self.stream and self.schema_:
+            raise ValueError("Cannot use stream=true with a schema — structured output requires the full response")
+        return self
 
 
 class VisionChatRequest(BaseModel):
@@ -391,6 +399,7 @@ async def chat(bot_id: str, chat_id: str, req: ChatRequest):
             stream=False,
             uploaded_files=req.uploaded_files,
             web_search=req.web_search,
+            schema=req.schema_,
         )
         return {"answer": answer, "web_sources": web_sources}
     except Exception as e:
