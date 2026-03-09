@@ -11,7 +11,7 @@ from typing import AsyncIterator, Iterator, Optional
 
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.retrievers import BaseRetriever
@@ -179,7 +179,7 @@ class AgentBot:
             self.agent = create_react_agent(
                 model=llm,
                 tools=tools,
-                prompt=system_prompt,
+                prompt=SystemMessage(content=system_prompt),
             )
         except ImportError:
             raise

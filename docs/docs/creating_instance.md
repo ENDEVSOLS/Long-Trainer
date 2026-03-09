@@ -52,8 +52,8 @@ Supported names: `faiss`, `pinecone`, `chroma`, `qdrant`, `pgvector`, `mongodb`,
 ```python
 # Connect to MongoDB Atlas Vector Search
 trainer = LongTrainer(
-    vectorstore_provider="mongodb",
-    vectorstore_kwargs={
+    vector_store_provider="mongodb",
+    vector_store_kwargs={
         "connection_string": "mongodb+srv://<username>:<password>@cluster.mongodb.net",
         "index_name": "vector_index"
     }

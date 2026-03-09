@@ -368,16 +368,23 @@ class LongTrainer:
             bot_id: The bot's unique identifier.
 
         Raises:
-            ValueError: If bot_id is not found.
+            ValueError: If bot_id is not found in MongoDB.
         """
-        if bot_id not in self.bot_data:
+        # MongoDB is authoritative — never rely on in-memory dict
+        bot_config = self._storage.find_bot(bot_id)
+        if not bot_config:
             raise ValueError(f"Bot ID {bot_id} not found.")
 
+        db_path = bot_config.get("db_path", bot_config.get("faiss_path", f"db_{bot_id}"))
+
+        # Delete from MongoDB first (authoritative)
         self._storage.delete_bot(bot_id)
 
-        bot = self.bot_data[bot_id]
-        delete_vectorstore(self._config.vector_store_provider, bot_id, bot["db_path"])
-        del self.bot_data[bot_id]
+        # Delete vectorstore files
+        delete_vectorstore(self._config.vector_store_provider, bot_id, db_path)
+
+        # Evict from local cache if present
+        self.bot_data.pop(bot_id, None)
 
         data_folder = f"./data-{bot_id}"
         try:
@@ -604,33 +611,10 @@ class LongTrainer:
             if documents:
                 self._doc_manager.pass_documents(documents, bot_id)
 
-            updated_documents = self._doc_manager.get_documents(bot_id)
-            new_docs = updated_documents[existing_count:]
+            # Rebuild using the current vectorstore API (B6: remove legacy faiss_index)
+            # B7: forward prompt_template so it is persisted to MongoDB
+            self.create_bot(bot_id, prompt_template=prompt_template)
 
-            bot = self.bot_data[bot_id]
-            if bot["retriever"] and bot["retriever"].faiss_index:
-                all_splits = self.text_splitter.split_documents(new_docs)
-                bot["retriever"].update_index(all_splits)
-                bot["retriever"].save_index(file_path=bot["faiss_path"])
-                bot["ensemble_retriever"] = bot["retriever"].retrieve_documents()
-            else:
-                all_splits = self.text_splitter.split_documents(updated_documents)
-                bot["retriever"] = DocumentRetriever(
-                    documents=all_splits,
-                    embedding_model=self.embedding_model,
-                    llm=self.llm,
-                    ensemble=self.ensemble,
-                    existing_faiss_index=(
-                        bot["retriever"].faiss_index if bot["retriever"] else None
-                    ),
-                    num_k=self.k,
-                )
-                bot["retriever"].save_index(file_path=bot["faiss_path"])
-                bot["ensemble_retriever"] = bot["retriever"].retrieve_documents()
-
-            self.create_bot(bot_id, prompt_template)
-
-            del updated_documents, new_docs
             gc.collect()
         except Exception as e:
             print(f"[ERROR] Error updating chatbot: {e}")

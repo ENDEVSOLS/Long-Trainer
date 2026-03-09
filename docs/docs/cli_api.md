@@ -81,7 +81,7 @@ longtrainer chat <bot_id>
 
 ## 2. The REST API
 
-When you run `longtrainer serve`, it exposes a full REST API with 16 endpoints. 
+When you run `longtrainer serve`, it exposes a full REST API with **18 endpoints**. 
 
 You can view the interactive **Swagger UI Documentation** by navigating to:
 👉 `http://localhost:8000/docs`
@@ -128,5 +128,8 @@ Below is a quick reference of the available endpoints. All API requests process 
 
 #### Utilities
 * `POST /bots/{bot_id}/vectorstore` — Directly search the FAISS index without querying the LLM.
+  ```json
+  { "query": "your search text" }
+  ```
 * `PUT /bots/{bot_id}/prompt` — Update the system prompt for a bot.
 * `POST /bots/{bot_id}/train-chats` — Trigger self-improvement (train the bot on its past Q&A).
