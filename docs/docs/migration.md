@@ -47,13 +47,13 @@ New helper methods for loading from cloud and enterprise platforms:
 
 | Method | Source |
 |---|---|
-| `load_directory()` | Local folders with glob patterns |
-| `load_json()` | JSON files with jq schema |
-| `load_confluence()` | Atlassian Confluence |
-| `load_github()` | GitHub repositories |
-| `load_s3()` | AWS S3 buckets |
-| `load_google_drive()` | Google Drive folders |
-| `load_dynamic_loader()` | Any LangChain loader by class name |
+| `add_document_from_directory()` | Local folders with glob patterns |
+| `add_document_from_json()` | JSON files with jq schema |
+| `add_document_from_confluence()` | Atlassian Confluence |
+| `add_document_from_github()` | GitHub repositories |
+| `add_document_from_aws_s3()` | AWS S3 buckets |
+| `add_document_from_google_drive()` | Google Drive folders |
+| `add_document_from_dynamic_loader()` | Any LangChain loader by class name |
 
 #### Dynamic Model Factory
 

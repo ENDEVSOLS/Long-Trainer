@@ -124,7 +124,7 @@ Start a production-ready API server backed by your LongTrainer bots:
 longtrainer serve
 ```
 
-This starts a FastAPI server running on `http://localhost:8000` with **16 REST endpoints**, including:
+This starts a FastAPI server running on `http://localhost:8000` with **18 REST endpoints**, including:
 - `/health`
 - `/bots` (CRUD)
 - `/bots/{id}/documents/path` (Ingest files)

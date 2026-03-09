@@ -142,7 +142,8 @@ class ChatManager:
         stream: bool = False,
         uploaded_files: Optional[list[dict]] = None,
         web_search: bool = False,
-    ) -> Union[tuple[str, list[str]], Iterator[str]]:
+        schema: Optional[dict] = None,
+    ) -> Union[tuple, Iterator[str]]:
         """Get a response from the chatbot.
 
         Args:
@@ -185,6 +186,21 @@ class ChatManager:
                     final_query, bot_id, chat_id, bot_instance, query, web_source
                 )
 
+            # ── Structured output path ──────────────────────────────────────────
+            # Only RAGBot supports invoke_structured — agent bots fall through.
+            if schema and not bot_data.get("agent_mode") and hasattr(bot_instance, "invoke_structured"):
+                structured = bot_instance.invoke_structured(final_query, schema)
+                self.storage.store_chat(
+                    bot_id=bot_id,
+                    chat_id=chat_id,
+                    query=query,
+                    answer=str(structured.get("data", "")),
+                    web_source=web_source,
+                    uploaded_files=uploaded_files,
+                )
+                return structured, web_source
+
+            # ── Standard path ────────────────────────────────────────────────────
             answer = bot_instance.invoke(final_query)
 
             self.storage.store_chat(

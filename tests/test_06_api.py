@@ -73,5 +73,6 @@ def test_chat_sync_endpoint(client, mock_trainer):
         chat_id="chat_456",
         stream=False,
         uploaded_files=None,
-        web_search=False
+        web_search=False,
+        schema=None
     )

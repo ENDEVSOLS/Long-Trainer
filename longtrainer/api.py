@@ -12,11 +12,25 @@ import os
 from contextlib import asynccontextmanager
 from typing import Optional
 
+from dotenv import load_dotenv
+load_dotenv()
+
+import uuid
+
 import yaml
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, Field, model_validator
+
+# P3-7: Rate limiting — graceful fallback if slowapi is not installed
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.util import get_remote_address
+    _SLOWAPI_AVAILABLE = True
+except ImportError:
+    _SLOWAPI_AVAILABLE = False
 
 from longtrainer import __version__
 
@@ -54,10 +68,58 @@ def _get_trainer():
     return _trainer
 
 
+def _ensure_bot_loaded(trainer, bot_id: str) -> None:
+    """Load bot from MongoDB if not already in local cache.
+
+    MongoDB is the source of truth. self.bot_data is a warm per-process cache.
+    On any miss → load from Mongo, never the reverse.
+    """
+    if bot_id not in trainer.bot_data:
+        trainer.load_bot(bot_id)
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """App lifespan — trainer is lazy-initialized on first API call."""
     yield
+
+
+# ─── H2: Tenant-Aware API Key Authentication ─────────────────────────────────
+
+_API_KEY_AUTH_ENABLED = bool(os.environ.get("SERVER_AUTH_KEY"))
+
+
+async def _authenticate(request: Request, x_api_key: Optional[str] = Header(default=None)):
+    """FastAPI dependency: validate API key and extract tenant_id.
+
+    When SERVER_AUTH_KEY env var is set, auth is required.
+    If an `api_keys` collection exists in MongoDB with {key, tenant_id},
+    the tenant_id is extracted and injected into request.state.
+    Otherwise falls back to a default tenant.
+
+    When SERVER_AUTH_KEY is NOT set, auth is disabled (backwards-compatible).
+    """
+    if not _API_KEY_AUTH_ENABLED:
+        request.state.tenant_id = "default"
+        return
+
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="Missing X-API-Key header.")
+
+    # Check MongoDB api_keys collection for tenant mapping
+    trainer = _get_trainer()
+    api_key_doc = trainer.db["api_keys"].find_one({"key": x_api_key})
+
+    if api_key_doc:
+        request.state.tenant_id = api_key_doc.get("tenant_id", "default")
+        return
+
+    # Fallback: check against the global env var key
+    if x_api_key == os.environ.get("SERVER_AUTH_KEY"):
+        request.state.tenant_id = "default"
+        return
+
+    raise HTTPException(status_code=403, detail="Invalid API key.")
 
 
 # ─── App ──────────────────────────────────────────────────────────────────────
@@ -67,7 +129,27 @@ app = FastAPI(
     version=__version__,
     description="Production-Ready RAG Framework REST API",
     lifespan=lifespan,
+    dependencies=[Depends(_authenticate)],
 )
+
+# P3-7: Rate limiting — in-memory by default, Redis via config
+if _SLOWAPI_AVAILABLE:
+    _rate_limit_storage = os.environ.get("LONGTRAINER_RATE_LIMIT_STORAGE", "memory://")
+    limiter = Limiter(key_func=get_remote_address, storage_uri=_rate_limit_storage)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+else:
+    import logging as _log
+    _log.getLogger(__name__).warning(
+        "slowapi not installed — rate limiting disabled. Install with: pip install slowapi"
+    )
+    # No-op limiter so @limiter.limit() decorators don't crash
+    class _NoOpLimiter:
+        def limit(self, *a, **kw):
+            def decorator(func):
+                return func
+            return decorator
+    limiter = _NoOpLimiter()
 
 app.add_middleware(
     CORSMiddleware,
@@ -104,6 +186,14 @@ class ChatRequest(BaseModel):
     stream: bool = False
     web_search: bool = False
     uploaded_files: Optional[list[dict]] = None
+    schema_: Optional[dict] = Field(None, alias="schema")
+    model_config = {"populate_by_name": True}
+
+    @model_validator(mode="after")
+    def check_stream_schema_conflict(self):
+        if self.stream and self.schema_:
+            raise ValueError("Cannot use stream=true with a schema — structured output requires the full response")
+        return self
 
 
 class VisionChatRequest(BaseModel):
@@ -119,6 +209,8 @@ class PromptTemplateRequest(BaseModel):
 
 class VectorSearchRequest(BaseModel):
     query: str
+
+
 
 
 # ─── Health ───────────────────────────────────────────────────────────────────
@@ -145,6 +237,7 @@ async def create_bot_id():
 async def build_bot(bot_id: str, req: CreateBotRequest):
     """Build a bot from its loaded documents."""
     trainer = _get_trainer()
+    _ensure_bot_loaded(trainer, bot_id)
     try:
         trainer.create_bot(
             bot_id=bot_id,
@@ -179,23 +272,50 @@ async def delete_bot(bot_id: str):
         raise HTTPException(status_code=404, detail=str(e))
 
 
+
+
 # ─── Documents ────────────────────────────────────────────────────────────────
 
 @app.post("/bots/{bot_id}/documents/path")
-async def add_document_path(bot_id: str, req: DocumentPathRequest):
-    """Add a document from a local file path."""
+async def add_document_path(bot_id: str, req: DocumentPathRequest, background_tasks: BackgroundTasks):
+    """Add a document from a local file path (async with job tracking).
+
+    H4: Returns immediately with a job_id. Use GET /jobs/{job_id} to poll status.
+    """
     trainer = _get_trainer()
-    try:
-        trainer.add_document_from_path(req.path, bot_id, req.use_unstructured)
-        return {"status": "ok"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    _ensure_bot_loaded(trainer, bot_id)
+
+    job_id = str(uuid.uuid4())
+    trainer._storage.create_job(job_id, bot_id, "document_ingest")
+
+    def _ingest(j_id: str, b_id: str, path: str, use_unstructured: bool):
+        try:
+            trainer._storage.update_job_status(j_id, "processing")
+            trainer.add_document_from_path(path, b_id, use_unstructured)
+            trainer._storage.update_job_status(j_id, "success")
+        except Exception as exc:
+            trainer._storage.update_job_status(j_id, "failed", error=str(exc))
+
+    background_tasks.add_task(_ingest, job_id, bot_id, req.path, req.use_unstructured)
+    return {"job_id": job_id, "status": "pending"}
+
+
+@app.get("/jobs/{job_id}")
+async def get_job_status(job_id: str):
+    """Poll the status of an async job."""
+    trainer = _get_trainer()
+    job = trainer._storage.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    job.pop("_id", None)
+    return job
 
 
 @app.post("/bots/{bot_id}/documents/link")
 async def add_document_link(bot_id: str, req: DocumentLinkRequest):
     """Add documents from web links."""
     trainer = _get_trainer()
+    _ensure_bot_loaded(trainer, bot_id)
     try:
         trainer.add_document_from_link(req.links, bot_id)
         return {"status": "ok"}
@@ -207,6 +327,7 @@ async def add_document_link(bot_id: str, req: DocumentLinkRequest):
 async def add_document_query(bot_id: str, req: DocumentQueryRequest):
     """Add documents from a Wikipedia search."""
     trainer = _get_trainer()
+    _ensure_bot_loaded(trainer, bot_id)
     try:
         trainer.add_document_from_query(req.search_query, bot_id)
         return {"status": "ok"}
@@ -220,6 +341,7 @@ async def add_document_query(bot_id: str, req: DocumentQueryRequest):
 async def new_chat(bot_id: str):
     """Create a new chat session."""
     trainer = _get_trainer()
+    _ensure_bot_loaded(trainer, bot_id)
     try:
         chat_id = trainer.new_chat(bot_id)
         if not chat_id:
@@ -233,6 +355,7 @@ async def new_chat(bot_id: str):
 async def list_chats(bot_id: str):
     """List all chat session IDs for a bot."""
     trainer = _get_trainer()
+    _ensure_bot_loaded(trainer, bot_id)
     return trainer.list_chats(bot_id)
 
 
@@ -253,6 +376,7 @@ async def get_chat(chat_id: str, order: str = "newest"):
 async def chat(bot_id: str, chat_id: str, req: ChatRequest):
     """Send a message and get a response."""
     trainer = _get_trainer()
+    _ensure_bot_loaded(trainer, bot_id)
 
     if req.stream:
         async def stream_gen():
@@ -275,6 +399,7 @@ async def chat(bot_id: str, chat_id: str, req: ChatRequest):
             stream=False,
             uploaded_files=req.uploaded_files,
             web_search=req.web_search,
+            schema=req.schema_,
         )
         return {"answer": answer, "web_sources": web_sources}
     except Exception as e:
@@ -287,6 +412,7 @@ async def chat(bot_id: str, chat_id: str, req: ChatRequest):
 async def new_vision_chat(bot_id: str):
     """Create a new vision chat session."""
     trainer = _get_trainer()
+    _ensure_bot_loaded(trainer, bot_id)
     try:
         vision_chat_id = trainer.new_vision_chat(bot_id)
         if not vision_chat_id:
@@ -300,6 +426,7 @@ async def new_vision_chat(bot_id: str):
 async def vision_chat(bot_id: str, vision_chat_id: str, req: VisionChatRequest):
     """Send a vision query with images and get a response."""
     trainer = _get_trainer()
+    _ensure_bot_loaded(trainer, bot_id)
     try:
         response, web_sources = trainer.get_vision_response(
             query=req.query,
@@ -320,6 +447,7 @@ async def vision_chat(bot_id: str, vision_chat_id: str, req: VisionChatRequest):
 async def set_prompt(bot_id: str, req: PromptTemplateRequest):
     """Update the system prompt for a bot."""
     trainer = _get_trainer()
+    _ensure_bot_loaded(trainer, bot_id)
     try:
         trainer.set_custom_prompt_template(bot_id, req.prompt_template)
         return {"status": "ok"}
@@ -331,6 +459,7 @@ async def set_prompt(bot_id: str, req: PromptTemplateRequest):
 async def search_vectorstore(bot_id: str, req: VectorSearchRequest):
     """Search the vector store directly."""
     trainer = _get_trainer()
+    _ensure_bot_loaded(trainer, bot_id)
     try:
         docs = trainer.invoke_vectorstore(bot_id, req.query)
         return {"documents": [{"content": d.page_content, "metadata": d.metadata} for d in docs]}
@@ -342,8 +471,11 @@ async def search_vectorstore(bot_id: str, req: VectorSearchRequest):
 async def train_on_chats(bot_id: str):
     """Train the bot on its unprocessed chat history."""
     trainer = _get_trainer()
+    _ensure_bot_loaded(trainer, bot_id)
     try:
         result = trainer.train_chats(bot_id)
         return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
