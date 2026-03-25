@@ -47,8 +47,7 @@ class MultiQueryEnsembleRetriever(BaseRetriever):
     llm: BaseLanguageModel
     k: int = 3
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = {"arbitrary_types_allowed": True}
 
     def _get_relevant_documents(
         self, query: str, *, run_manager: Optional[CallbackManagerForRetrieverRun] = None

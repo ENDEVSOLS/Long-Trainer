@@ -11,7 +11,7 @@ from typing import AsyncIterator, Iterator, Optional
 
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.retrievers import BaseRetriever
@@ -99,6 +99,120 @@ class RAGBot:
             print(f"[ERROR] Error in RAGBot invoke: {e}")
             return ""
 
+    def invoke_structured(self, query: str, schema: dict):
+        """Single LLM call: retrieve docs → validate output against JSON schema.
+
+        Correct message ordering for all LLM providers:
+          [SystemMessage (prompt + context)] → [chat history H/A pairs] → [HumanMessage]
+        SystemMessage is ALWAYS first — Anthropic/OpenAI reject SystemMessage mid-array.
+
+        Includes a 1-retry self-correction loop when validation fails.
+
+        Args:
+            query: The user's question.
+            schema: JSON Schema dict to validate the LLM response against.
+
+        Returns:
+            dict with keys: status, data, raw_llm_output, error.
+        """
+        import json
+        import logging
+        import jsonschema
+
+        logger = logging.getLogger(__name__)
+
+        def _validate(llm_output: str, schema: dict) -> dict:
+            """Parse and validate LLM output against a JSON Schema."""
+            cleaned = llm_output.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[-1]
+                if cleaned.endswith("```"):
+                    cleaned = cleaned[:-3].strip()
+            parsed = json.loads(cleaned)
+            jsonschema.validate(instance=parsed, schema=schema)
+            return parsed
+
+        def _truncate_error(error: Exception) -> str:
+            """Extract field path + error type — never the full broken payload."""
+            if isinstance(error, jsonschema.ValidationError):
+                path = " -> ".join(str(p) for p in error.absolute_path) or "root"
+                return f"Field '{path}' failed validation: {error.message[:200]}"
+            elif isinstance(error, json.JSONDecodeError):
+                return f"JSON parse error at position {error.pos}: {error.msg}"
+            return str(error)[:200]
+
+        _partial = lambda msg, raw=None: {
+            "status": "partial_success",
+            "data": None,
+            "raw_llm_output": raw,
+            "error": msg,
+        }
+
+        try:
+            # Step 1: Retrieve relevant docs (no LLM call — pure vector search)
+            docs = self.retriever.invoke(query)
+            context = _format_docs(docs)
+
+            # Step 2: Build correctly ordered message array
+            try:
+                original_system = self.prompt.messages[0].prompt.template
+            except (AttributeError, IndexError):
+                original_system = "You are a helpful assistant."
+
+            system_msg = SystemMessage(
+                content=f"{original_system}\n\nRelevant context from knowledge base:\n{context}"
+            )
+            history_messages = [
+                m for m in self.chat_history.messages
+                if not isinstance(m, SystemMessage)
+            ]
+
+            schema_instruction = (
+                f"You MUST respond with valid JSON matching this schema:\n"
+                f"```json\n{json.dumps(schema, indent=2)}\n```\n"
+                f"Return ONLY the JSON object, no markdown fences, no extra text."
+            )
+            messages = [system_msg] + history_messages + [
+                SystemMessage(content=schema_instruction) if not history_messages else HumanMessage(content=query),
+            ]
+            # Correct: system prompt first, then history, then schema instruction merged into user msg
+            messages = (
+                [system_msg]
+                + history_messages
+                + [HumanMessage(content=f"{query}\n\n{schema_instruction}")]
+            )
+
+            # Step 3: Attempt 1 — single LLM call
+            try:
+                response = self.llm.invoke(messages)
+                raw_output = response.content if isinstance(response, AIMessage) else str(response)
+                parsed = _validate(raw_output, schema)
+                self.save_context(query, str(parsed))
+                return {"status": "success", "data": parsed, "raw_llm_output": None, "error": None}
+            except (json.JSONDecodeError, jsonschema.ValidationError) as first_error:
+                logger.warning("Structured output attempt 1 failed: %s", first_error)
+
+                # Step 4: Attempt 2 — retry with error feedback (scratchpad, never mutates history)
+                error_context = _truncate_error(first_error)
+                retry_messages = list(messages) + [
+                    HumanMessage(content=f"Your previous response was invalid. {error_context} Regenerate valid JSON only.")
+                ]
+                try:
+                    retry_response = self.llm.invoke(retry_messages)
+                    raw_retry = retry_response.content if isinstance(retry_response, AIMessage) else str(retry_response)
+                    parsed = _validate(raw_retry, schema)
+                    self.save_context(query, str(parsed))
+                    return {"status": "success", "data": parsed, "raw_llm_output": None, "error": None}
+                except (json.JSONDecodeError, jsonschema.ValidationError) as second_error:
+                    logger.warning("Structured output attempt 2 failed: %s", second_error)
+                    raw_final = raw_retry if "raw_retry" in dir() else raw_output
+                    return _partial("The AI model failed to generate a strictly formatted response.", raw_final)
+
+        except Exception as e:
+            print(f"[ERROR] Error in RAGBot invoke_structured: {e}")
+            return _partial(f"Unexpected error: {str(e)}")
+
+
     def stream(self, query: str) -> Iterator[str]:
         """Stream response tokens for a query.
 
@@ -179,7 +293,7 @@ class AgentBot:
             self.agent = create_react_agent(
                 model=llm,
                 tools=tools,
-                prompt=system_prompt,
+                prompt=SystemMessage(content=system_prompt),
             )
         except ImportError:
             raise

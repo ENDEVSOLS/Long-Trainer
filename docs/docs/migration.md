@@ -1,6 +1,6 @@
-## Migration Guide: 1.0.0 → 1.2.0
+## Migration Guide: 1.0.0 → 1.2.1
 
-LongTrainer 1.2.0 is a **backward-compatible** feature release. No breaking changes — all existing code continues to work as-is.
+LongTrainer 1.2.1 is a **backward-compatible** feature release. No breaking changes — all existing code continues to work as-is.
 
 ### Upgrade
 
@@ -20,7 +20,7 @@ from longtrainer.tools import web_search
 trainer.add_tool(web_search, bot_id)
 trainer.create_bot(bot_id, agent_mode=True)
 
-# 1.2.0 — zero-code string injection (ALSO works)
+# 1.2.1 — zero-code string injection (ALSO works)
 trainer.create_bot(bot_id, agent_mode=True, tools=["wikipedia", "arxiv", "tavily_search_results_json"])
 ```
 
@@ -34,7 +34,7 @@ You can now use any of 9 vector store providers instead of only FAISS:
 # 1.0.0 — FAISS only (still the default)
 trainer = LongTrainer()
 
-# 1.2.0 — choose your provider
+# 1.2.1 — choose your provider
 trainer = LongTrainer(
     vector_store_provider="qdrant",  # or pinecone, chroma, pgvector, mongodb, milvus, weaviate, elasticsearch
     vector_store_kwargs={"url": "http://localhost:6333"}
@@ -47,13 +47,13 @@ New helper methods for loading from cloud and enterprise platforms:
 
 | Method | Source |
 |---|---|
-| `load_directory()` | Local folders with glob patterns |
-| `load_json()` | JSON files with jq schema |
-| `load_confluence()` | Atlassian Confluence |
-| `load_github()` | GitHub repositories |
-| `load_s3()` | AWS S3 buckets |
-| `load_google_drive()` | Google Drive folders |
-| `load_dynamic_loader()` | Any LangChain loader by class name |
+| `add_document_from_directory()` | Local folders with glob patterns |
+| `add_document_from_json()` | JSON files with jq schema |
+| `add_document_from_confluence()` | Atlassian Confluence |
+| `add_document_from_github()` | GitHub repositories |
+| `add_document_from_aws_s3()` | AWS S3 buckets |
+| `add_document_from_google_drive()` | Google Drive folders |
+| `add_document_from_dynamic_loader()` | Any LangChain loader by class name |
 
 #### Dynamic Model Factory
 
@@ -78,7 +78,7 @@ longtrainer bot create --agent --tools "wikipedia,arxiv"
 { "agent_mode": true, "tools": ["wikipedia", "arxiv"] }
 ```
 
-### Dependency Changes (1.0.0 → 1.2.0)
+### Dependency Changes (1.0.0 → 1.2.1)
 
 | New Optional Dependency | Used For |
 |---|---|
