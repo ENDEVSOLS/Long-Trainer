@@ -2,7 +2,7 @@
   <img src="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/assets/longtrainer-logo.png?raw=true" alt="LongTrainer Logo">
 </p>
 
-<h1 align="center">LongTrainer 1.2.1 — Production-Ready RAG Framework</h1>
+<h1 align="center">LongTrainer 1.2.2 — Production-Ready RAG Framework</h1>
 
 <p align="center">
   <strong>Multi-tenant bots, streaming, tools, and persistent memory — all batteries included.</strong>
@@ -99,7 +99,7 @@ brew install libmagic poppler tesseract qpdf libreoffice pandoc
 
 ## Quick Start 🚀
 
-### 1. Zero-Code CLI & API Server (New in 1.2.1!)
+### 1. Zero-Code CLI & API Server (New in 1.2.2!)
 
 Manage bots, chat, and run a production API directly from your terminal—no Python required.
 

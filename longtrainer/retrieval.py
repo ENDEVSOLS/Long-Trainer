@@ -1,13 +1,14 @@
-"""Document retrieval module using FAISS for LongTrainer V2.
+"""Document retrieval module for LongTrainer.
 
 Provides FAISS vector indexing with optional multi-query ensemble retrieval
 implemented natively (no deprecated langchain_classic dependencies).
+
+Also exposes similarity_search_with_score() so callers can obtain a
+confidence/relevance score alongside each retrieved document.
 """
 
 from __future__ import annotations
 
-import os
-import shutil
 from typing import Optional
 
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
@@ -121,3 +122,38 @@ class DocumentRetriever:
         """Saves the underlying FAISS index locally."""
         if self.faiss_index:
             self.faiss_index.save_local(file_path)
+
+    def similarity_search_with_score(
+        self, query: str, k: Optional[int] = None
+    ) -> list[tuple[Document, float]]:
+        """Return (document, similarity_score) pairs for the given query.
+
+        The score is the raw L2 distance from FAISS — lower is more similar.
+        A normalised 0-1 confidence score is also added to each document's
+        metadata under the key ``retrieval_score`` (1 = most similar).
+
+        Args:
+            query: The search string.
+            k: Number of results to return (defaults to self.k).
+
+        Returns:
+            List of (Document, raw_score) tuples, sorted by ascending L2 distance.
+        """
+        if self.faiss_index is None:
+            return []
+
+        num = k or self.k
+        try:
+            results = self.faiss_index.similarity_search_with_score(query, k=num)
+        except Exception as e:
+            print(f"[ERROR] similarity_search_with_score failed: {e}")
+            return []
+
+        # Attach a normalised confidence score to metadata (1.0 = best match)
+        if results:
+            raw_scores = [score for _, score in results]
+            max_score = max(raw_scores) if max(raw_scores) > 0 else 1.0
+            for doc, score in results:
+                doc.metadata["retrieval_score"] = round(1.0 - (score / max_score), 4)
+
+        return results

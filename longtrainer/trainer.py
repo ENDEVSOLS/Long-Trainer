@@ -402,10 +402,44 @@ class LongTrainer:
     def add_document_from_path(
         self, path: str, bot_id: str, use_unstructured: bool = False
     ) -> None:
-        """Load and store documents from a file path."""
+        """Load and store documents from a file path (blocking sync)."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
         self._doc_manager.add_document_from_path(path, bot_id, use_unstructured)
+
+    async def aadd_document_from_path(
+        self, path: str, bot_id: str, use_unstructured: bool = False
+    ) -> None:
+        """Load and store documents from a file path (non-blocking async).
+
+        Runs blocking file I/O in a background thread so the event loop
+        (e.g. a FastAPI server) is never stalled.
+
+        Args:
+            path: Path to the document file.
+            bot_id: The bot's unique identifier.
+            use_unstructured: Use UnstructuredLoader for any file type.
+        """
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+        await self._doc_manager.aadd_document_from_path(path, bot_id, use_unstructured)
+
+    def add_documents_from_paths(
+        self, paths: list[str], bot_id: str, use_unstructured: bool = False
+    ) -> None:
+        """Load and store documents from multiple file paths in parallel.
+
+        Uses a thread pool so all files are processed concurrently — ideal
+        when ingesting 10+ documents at once.
+
+        Args:
+            paths: List of file paths to load.
+            bot_id: The bot's unique identifier.
+            use_unstructured: Use UnstructuredLoader for all files.
+        """
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+        self._doc_manager.add_documents_from_paths(paths, bot_id, use_unstructured)
 
     def add_document_from_link(self, links: list[str], bot_id: str) -> None:
         """Load and store documents from web links."""
@@ -636,11 +670,50 @@ class LongTrainer:
     # ─── Vector Store Direct Access ───────────────────────────────────────────
 
     def invoke_vectorstore(self, bot_id: str, query: str) -> list:
-        """Retrieve similar documents directly from the vector store."""
+        """Retrieve similar documents directly from the vector store.
+
+        Returns a plain list of Document objects (no scores).
+        Use ``invoke_vectorstore_with_scores`` to get relevance scores.
+        """
         try:
             return self.bot_data[bot_id]["ensemble_retriever"].invoke(query)
         except Exception as e:
             print(f"[ERROR] Error invoking vector store: {e}")
+            return []
+
+    def invoke_vectorstore_with_scores(
+        self, bot_id: str, query: str, k: Optional[int] = None
+    ) -> list[tuple]:
+        """Retrieve documents with similarity/confidence scores.
+
+        Returns a list of ``(Document, raw_score)`` tuples.  A normalised
+        ``retrieval_score`` (0.0–1.0, higher = more relevant) is also
+        injected into each document's metadata.
+
+        Args:
+            bot_id: The bot's unique identifier.
+            query: The search string.
+            k: Number of results (defaults to the bot's ``num_k`` setting).
+
+        Returns:
+            List of (Document, float) tuples sorted by relevance.
+        """
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+        bot = self.bot_data[bot_id]
+        vectorstore = bot.get("vectorstore")
+        if vectorstore is None:
+            print(f"[WARN] No vectorstore found for bot {bot_id}.")
+            return []
+        try:
+            from longtrainer.retrieval import DocumentRetriever
+            # Build a temporary DocumentRetriever wrapper to access the scored search
+            retriever_wrapper = DocumentRetriever.__new__(DocumentRetriever)
+            retriever_wrapper.faiss_index = vectorstore
+            retriever_wrapper.k = k or self.k
+            return retriever_wrapper.similarity_search_with_score(query, k=k or self.k)
+        except Exception as e:
+            print(f"[ERROR] Error invoking vector store with scores: {e}")
             return []
 
     # ─── Chat History ─────────────────────────────────────────────────────────

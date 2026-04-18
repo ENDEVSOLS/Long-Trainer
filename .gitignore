@@ -16,7 +16,7 @@ venv/
 
 # PyCharm project files (if you are using PyCharm)
 .idea/
-
+Growth/
 
 
 # Testing folder
@@ -25,4 +25,4 @@ testing-folder/
 # Lock file
 uv.lock
 longtrainer.yaml
-db_bot-*/
+Landing-page/

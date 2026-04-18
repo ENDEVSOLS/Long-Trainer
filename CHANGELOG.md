@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.2] — 2026-04-11
+
+### 🐛 Bug Fixes & Perf Improvements
+- **Async Document Ingestion:** Implemented `aadd_document_from_path` and `aadd_document_from_link` with parallel ingestion via `ThreadPoolExecutor` and `asyncio.gather()`. Batch document ingestion is now non-blocking and significantly faster.
+- **Retrieval Confidence Scores:** Added `invoke_vectorstore_with_scores()` which returns the raw FAISS L2 distance and automatically injects a normalized `retrieval_score` (1.0 = perfect match) into document metadata.
+- **KeyError Bug:** Fixed a crash during `update_chatbot()` caused by an obsolete `faiss_path` dictionary reference.
+- **Documentation:** Added a new comprehensive implementation roadmap `/testing-folder/LONGTRAINER_ROADMAP.md` covering Phase 3 through Phase 10.
+
+
 ## [1.1.0] — 2026-02-21
 
 ### ✨ New Features

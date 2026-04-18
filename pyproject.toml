@@ -1,6 +1,6 @@
 [project]
 name = "longtrainer"
-version = "1.2.1"
+version = "1.2.2"
 description = "Production-ready RAG framework built on LangChain — multi-tenant chatbots with streaming, tool calling, agent mode, FAISS vector search, and persistent MongoDB memory"
 readme = "README.md"
 license = "MIT"
