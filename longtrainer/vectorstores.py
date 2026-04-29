@@ -92,10 +92,14 @@ def get_vectorstore(
             from qdrant_client import QdrantClient
             from qdrant_client.models import Distance, VectorParams
 
-            url = kwargs.get("url", ":memory:")
+            url = kwargs.get("url")
+            location = kwargs.get("location")
             api_key = kwargs.get("api_key", None)
 
-            client = QdrantClient(url=url, api_key=api_key)
+            if url:
+                client = QdrantClient(url=url, api_key=api_key)
+            else:
+                client = QdrantClient(location=location or ":memory:", api_key=api_key)
 
             if not client.collection_exists(collection_name):
                 try:

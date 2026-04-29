@@ -244,9 +244,11 @@ class LongTrainer:
             print(f"[ERROR] Error creating bot: {e}")
 
     def load_bot(self, bot_id: str) -> None:
-        """Load an existing bot from MongoDB and FAISS.
+        """Load an existing bot from MongoDB and its vector store.
 
-        Restores bot configuration, FAISS index, and all previous chat histories.
+        Restores bot configuration and vector store index only.
+        Chat histories are lazy-loaded on demand via _ensure_chat_loaded()
+        when a user first sends a message to a specific chat.
 
         Args:
             bot_id: The bot's unique identifier.
@@ -316,48 +318,12 @@ class LongTrainer:
 
             bot["retriever"] = bot["ensemble_retriever"]
 
-            load_chat_history = self._storage.list_chats(bot_id)
-
-            print("[INFO] Loading previous chats...")
-            for chat_id in load_chat_history["chat_ids"]:
-                data = self._storage.get_chat_by_id(chat_id, "oldest")
-                if not data:
-                    continue
-
-                rag_bot = RAGBot(
-                    retriever=bot["ensemble_retriever"],
-                    llm=self.llm,
-                    prompt=bot["prompt"],
-                    token_limit=self.max_token_limit,
-                )
-                for item in data:
-                    rag_bot.save_context(
-                        str(item["question"]),
-                        str(item["answer"]),
-                    )
-                bot["chains"][chat_id] = rag_bot
-
-            for vision_chat_id in load_chat_history["vision_chat_ids"]:
-                data = self._storage.get_vision_chat_by_id(vision_chat_id, "oldest")
-                if not data:
-                    continue
-
-                vision_mem = VisionMemory(
-                    token_limit=self.max_token_limit,
-                    llm=self.llm,
-                    ensemble_retriever=bot["ensemble_retriever"],
-                    prompt_template=bot["prompt_template"],
-                )
-                for item in data:
-                    vision_mem.save_context(
-                        str(item["question"]),
-                        str(item["response"]),
-                    )
-                bot["assistants"][vision_chat_id] = vision_mem
-
-            print("[INFO] Previous chats loaded successfully.")
+            # Chat histories are lazy-loaded on demand — no eager loading.
+            # When a user sends a message, _ensure_chat_loaded() or
+            # _ensure_vision_chat_loaded() pulls just that one chat from
+            # MongoDB and replays its history into a fresh RAGBot/VisionMemory.
             gc.collect()
-            print(f"[INFO] Bot {bot_id} loaded successfully.")
+            print(f"[INFO] Bot {bot_id} loaded successfully (chats will be lazy-loaded on demand).")
         except Exception as e:
             print(f"[ERROR] Error loading bot: {e}")
 
@@ -547,6 +513,105 @@ class LongTrainer:
             tools.extend(self.bot_data[bot_id]["tools"].get_tools())
         return tools
 
+    # ─── Lazy Chat Loading ─────────────────────────────────────────────────────
+
+    def _ensure_chat_loaded(self, bot_id: str, chat_id: str) -> None:
+        """Lazy-load a single chat session from MongoDB on demand.
+
+        If the chat_id already exists in ``bot["chains"]``, this is a no-op.
+        Otherwise, pulls the chat history from MongoDB, creates a fresh
+        RAGBot (or AgentBot in agent mode), replays the stored messages,
+        and caches it in ``bot["chains"]``.
+
+        If the chat_id has no history in MongoDB (e.g. a brand-new chat
+        that was never persisted), a fresh bot instance is created with
+        an empty history.
+
+        Args:
+            bot_id: The bot's unique identifier.
+            chat_id: The chat session's unique identifier.
+        """
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+
+        bot = self.bot_data[bot_id]
+
+        # Already in memory — nothing to do
+        if chat_id in bot["chains"]:
+            return
+
+        # Create the appropriate bot instance
+        if bot.get("agent_mode"):
+            tools = self._global_tools.get_tools()
+            tools.extend(bot["tools"].get_tools())
+            bot_instance = AgentBot(
+                llm=self.llm,
+                tools=tools,
+                system_prompt=bot.get("prompt_template", self.prompt_template),
+                token_limit=self.max_token_limit,
+            )
+        else:
+            bot_instance = RAGBot(
+                retriever=bot["ensemble_retriever"],
+                llm=self.llm,
+                prompt=bot["prompt"],
+                token_limit=self.max_token_limit,
+            )
+
+        # Replay history from MongoDB (if any exists)
+        data = self._storage.get_chat_by_id(chat_id, "oldest")
+        if data:
+            for item in data:
+                bot_instance.save_context(
+                    str(item["question"]),
+                    str(item["answer"]),
+                )
+            print(f"[INFO] Lazy-loaded chat {chat_id} ({len(data)} messages).")
+        else:
+            print(f"[INFO] No history found for chat {chat_id}, starting fresh.")
+
+        bot["chains"][chat_id] = bot_instance
+
+    def _ensure_vision_chat_loaded(self, bot_id: str, vision_chat_id: str) -> None:
+        """Lazy-load a single vision chat session from MongoDB on demand.
+
+        Same semantics as ``_ensure_chat_loaded`` but for vision chats
+        stored in ``bot["assistants"]``.
+
+        Args:
+            bot_id: The bot's unique identifier.
+            vision_chat_id: The vision chat session's unique identifier.
+        """
+        if bot_id not in self.bot_data:
+            raise ValueError(f"Bot ID {bot_id} not found.")
+
+        bot = self.bot_data[bot_id]
+
+        # Already in memory — nothing to do
+        if vision_chat_id in bot["assistants"]:
+            return
+
+        vision_mem = VisionMemory(
+            token_limit=self.max_token_limit,
+            llm=self.llm,
+            ensemble_retriever=bot["ensemble_retriever"],
+            prompt_template=bot.get("prompt_template", self.prompt_template),
+        )
+
+        # Replay history from MongoDB (if any exists)
+        data = self._storage.get_vision_chat_by_id(vision_chat_id, "oldest")
+        if data:
+            for item in data:
+                vision_mem.save_context(
+                    str(item["question"]),
+                    str(item["response"]),
+                )
+            print(f"[INFO] Lazy-loaded vision chat {vision_chat_id} ({len(data)} messages).")
+        else:
+            print(f"[INFO] No history found for vision chat {vision_chat_id}, starting fresh.")
+
+        bot["assistants"][vision_chat_id] = vision_mem
+
     # ─── Chat Sessions ────────────────────────────────────────────────────────
 
     def new_chat(self, bot_id: str) -> str:
@@ -580,6 +645,8 @@ class LongTrainer:
         """Get a response from the chatbot."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        # Lazy-load chat history from MongoDB if not already in memory
+        self._ensure_chat_loaded(bot_id, chat_id)
         return self._chat_manager.get_response(
             query, bot_id, chat_id, self.bot_data[bot_id],
             stream, uploaded_files, web_search, schema=schema,
@@ -596,6 +663,8 @@ class LongTrainer:
         """Async streaming response."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        # Lazy-load chat history from MongoDB if not already in memory
+        self._ensure_chat_loaded(bot_id, chat_id)
         async for chunk in self._chat_manager.aget_response(
             query, bot_id, chat_id, self.bot_data[bot_id],
             uploaded_files, web_search,
@@ -614,6 +683,8 @@ class LongTrainer:
         """Get a response from the vision AI assistant."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        # Lazy-load vision chat history from MongoDB if not already in memory
+        self._ensure_vision_chat_loaded(bot_id, vision_chat_id)
         return self._chat_manager.get_vision_response(
             query, image_paths, bot_id, vision_chat_id,
             self.bot_data[bot_id], uploaded_files, web_search,
