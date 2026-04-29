@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.3] — 2026-04-29
+
+### 🚀 Performance & Scalability
+- **Lazy Loading Chat Histories:** Significantly optimized startup time and RAM consumption. `load_bot()` no longer eagerly loads all chat histories into RAM. Instead, chat histories are lazy-loaded on-demand from MongoDB via new `_ensure_chat_loaded()` and `_ensure_vision_chat_loaded()` methods.
+- **Qdrant Initialization Fix:** Fixed a bug in `vectorstores.py` where passing `:memory:` to Qdrant would fail due to improper URL parsing. In-memory fallback is now properly handled via the `location` parameter.
+
 ## [1.2.2] — 2026-04-11
 
 ### 🐛 Bug Fixes & Perf Improvements
