@@ -75,6 +75,11 @@ class LongTrainer:
         ensemble: bool = False,
         encrypt_chats: bool = False,
         encryption_key: Optional[bytes] = None,
+        enable_tracer: bool = False,
+        tracer_backend: str = "mongo",
+        tracer_verbose: bool = False,
+        tracer_verify: bool = True,
+        tracer_threshold: float = 0.5,
     ) -> None:
         # Models
         self.llm = llm or get_llm(llm_provider, default_llm)
@@ -102,6 +107,11 @@ class LongTrainer:
             ensemble=ensemble,
             encrypt_chats=encrypt_chats,
             encryption_key=encryption_key,
+            enable_tracer=enable_tracer,
+            tracer_backend=tracer_backend,
+            tracer_verbose=tracer_verbose,
+            tracer_verify=tracer_verify,
+            tracer_threshold=tracer_threshold,
         )
 
         # Managers
@@ -109,7 +119,30 @@ class LongTrainer:
         self.document_loader = DocumentLoader()
         self.text_splitter = TextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self._doc_manager = DocumentManager(self._storage, self.document_loader)
-        self._chat_manager = ChatManager(self._storage, self.llm, max_token_limit)
+
+        # Initialize LongTracer (once, singleton)
+        self._tracer_available = False
+        if enable_tracer:
+            os.environ.setdefault("MONGODB_URI", mongo_endpoint)
+            try:
+                from longtracer import LongTracer as LT
+                LT.init(backend=tracer_backend, verbose=tracer_verbose)
+                self._tracer_available = True
+                print("[INFO] LongTracer initialized.")
+            except ImportError:
+                print(
+                    "[WARN] enable_tracer=True but 'longtracer' not installed. "
+                    "Install with: pip install longtrainer[tracer]"
+                )
+            except Exception as e:
+                print(f"[WARN] LongTracer init failed: {e}")
+
+        self._chat_manager = ChatManager(
+            self._storage, self.llm, max_token_limit,
+            enable_tracer=self._tracer_available,
+            tracer_verify=tracer_verify,
+            tracer_threshold=tracer_threshold,
+        )
 
         # Bot runtime state
         self.bot_data: dict = {}

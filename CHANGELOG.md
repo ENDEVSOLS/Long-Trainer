@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] — 2026-05-01
+
+### ✨ New Features
+- **LongTracer Integration**: Native, optional support for LongTracer hallucination detection and observability.
+  - Automatically captures spans, latencies, and token counts for LLM calls and retriever queries.
+  - Provides claim verification via `CitationVerifier` using hybrid STS and NLI for RAG, Vision, and Structured bot responses.
+  - Opt-in via `enable_tracer=True` during `LongTrainer` initialization.
+  - Available via the `[tracer]` extra (`pip install longtrainer[tracer]`).
+
 ## [1.2.3] — 2026-04-29
 
 ### 🚀 Performance & Scalability

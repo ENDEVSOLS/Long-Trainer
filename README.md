@@ -2,7 +2,7 @@
   <img src="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/assets/longtrainer-logo.png?raw=true" alt="LongTrainer Logo">
 </p>
 
-<h1 align="center">LongTrainer 1.2.3 — Production-Ready RAG Framework</h1>
+<h1 align="center">LongTrainer 1.3.0 — Production-Ready RAG Framework</h1>
 
 <p align="center">
   <strong>Multi-tenant bots, streaming, tools, and persistent memory — all batteries included.</strong>
@@ -75,6 +75,12 @@ pip install longtrainer
 
 ```bash
 pip install longtrainer[agent]
+```
+
+**With observability & hallucination detection (optional):**
+
+```bash
+pip install longtrainer[tracer]
 ```
 
 ### System Dependencies
@@ -260,6 +266,7 @@ trainer.create_bot(
 - ✅ **Multi-Bot Management:** Isolated bots with independent sessions, data, and configs
 - ✅ **Persistent Memory:** MongoDB-backed chat history, fully restorable
 - ✅ **Chat Encryption:** Fernet encryption for stored conversations
+- ✅ **Observability & Tracing:** Native integration with LongTracer for logging spans and hallucination detection (`pip install longtrainer[tracer]`)
 
 ### Document Ingestion
 - ✅ **Standard Formats:** PDF, DOCX, CSV, HTML, Markdown, TXT
@@ -311,6 +318,11 @@ trainer = LongTrainer(
     ensemble=False,          # enable multi-query ensemble retrieval
     encrypt_chats=False,     # enable Fernet encryption
     encryption_key=None,     # custom encryption key (auto-generated if None)
+    enable_tracer=False,     # enable LongTracer observability
+    tracer_backend="mongo",    # tracer backend ('mongo', 'sqlite', 'memory')
+    tracer_verify=True,      # run CitationVerifier (hallucination detection)
+    tracer_verbose=False,    # print tracer spans to console
+    tracer_threshold=0.5,    # confidence threshold for tracer (0-1)
 )
 ```
 

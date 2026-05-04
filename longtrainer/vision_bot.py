@@ -87,7 +87,7 @@ class VisionMemory:
             print(f"[ERROR] Error generating prompt: {e}")
             return ""
 
-    def get_answer(self, query: str, webdata: Optional[str] = None) -> tuple[str, list[str]]:
+    def get_answer(self, query: str, webdata: Optional[str] = None) -> tuple[str, list[str], list]:
         """Retrieve context documents and generate a prompt.
 
         Args:
@@ -95,7 +95,7 @@ class VisionMemory:
             webdata: Optional web search context.
 
         Returns:
-            Tuple of (formatted_prompt, list_of_source_paths).
+            Tuple of (formatted_prompt, list_of_source_paths, raw_docs).
         """
         try:
             unique_sources: set[str] = set()
@@ -113,10 +113,10 @@ class VisionMemory:
                 f"{query}\nAdditional web search context:\n{webdata}" if webdata else query
             )
             prompt = self.generate_prompt(updated_query, docs)
-            return prompt, list(unique_sources)
+            return prompt, list(unique_sources), docs
         except Exception as e:
             print(f"[ERROR] Error getting answer: {e}")
-            return "", []
+            return "", [], []
 
     @property
     def memory(self):

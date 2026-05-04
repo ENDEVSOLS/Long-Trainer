@@ -35,6 +35,12 @@ class LongTrainerConfig(BaseModel):
         ensemble: Enable ensemble retriever (FAISS + MultiQuery).
         encrypt_chats: Enable Fernet encryption for stored chats.
         encryption_key: Fernet key bytes (auto-generated if not provided).
+        enable_tracer: Enable LongTracer integration for tracing and verification.
+        tracer_backend: LongTracer backend ("mongo", "sqlite", "memory").
+        tracer_verbose: Print per-span summaries to console.
+        tracer_verify: Run CitationVerifier for hallucination detection.
+            False = spans only, no NLI model download (~500MB).
+        tracer_threshold: Hallucination detection threshold (0.0–1.0).
     """
 
     mongo_endpoint: str = "mongodb://localhost:27017/"
@@ -52,5 +58,12 @@ class LongTrainerConfig(BaseModel):
     ensemble: bool = False
     encrypt_chats: bool = False
     encryption_key: Optional[bytes] = None
+
+    # LongTracer integration
+    enable_tracer: bool = False
+    tracer_backend: str = "mongo"
+    tracer_verbose: bool = False
+    tracer_verify: bool = True
+    tracer_threshold: float = 0.5
 
     model_config = {"arbitrary_types_allowed": True}
