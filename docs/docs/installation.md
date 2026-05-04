@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Python 3.9+
+- Python 3.10+
 - MongoDB running locally or remotely
 - An OpenAI API key (or another LangChain-compatible LLM)
 
@@ -18,6 +18,14 @@ Agent mode requires LangGraph for tool calling:
 
 ```bash
 pip install longtrainer[agent]
+```
+
+### With Observability & Hallucination Detection (Optional)
+
+LongTracer integration provides tracing spans and CitationVerifier-based hallucination detection:
+
+```bash
+pip install longtrainer[tracer]
 ```
 
 ## System Dependencies
@@ -44,10 +52,10 @@ brew install libmagic poppler tesseract qpdf libreoffice pandoc
 
 ```python
 import longtrainer
-print(longtrainer.__version__)  # Should print "1.2.0"
+print(longtrainer.__version__)  # Should print "1.3.0"
 
 from longtrainer import LongTrainer, ToolRegistry, web_search
-print("LongTrainer 1.2.0 installed successfully!")
+print("LongTrainer 1.3.0 installed successfully!")
 ```
 
 ## Environment Variables
