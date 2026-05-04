@@ -11,6 +11,7 @@ nav:
   - Guides:
     - CLI & API Server: cli_api.md
     - Agent Mode & Tools: agent_mode.md
+    - Observability & Tracing: tracer.md
     - Chat Management: chat_management.md
     - Supported Formats: supported_formats.md
     - Updating Bots: updating_bots.md
@@ -18,7 +19,7 @@ nav:
   - Integrations:
     - LLMs: integrating_llms.md
     - Embeddings: integrating_embeddings.md
-  - Migration 1.0.0 → 1.2.0: migration.md
+  - Migration 1.0.0 → 1.3.0: migration.md
   - Migration 0.3.4 → 1.0.0: migration.md
 
 theme:

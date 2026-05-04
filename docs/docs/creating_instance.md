@@ -25,6 +25,11 @@ trainer = LongTrainer()
 | `ensemble` | `bool` | `False` | Enable multi-query ensemble retrieval for better recall |
 | `encrypt_chats` | `bool` | `False` | Enable Fernet encryption for stored chats |
 | `encryption_key` | `bytes` | Auto-generated | Custom Fernet encryption key |
+| `enable_tracer` | `bool` | `False` | Enable LongTracer observability & hallucination detection |
+| `tracer_backend` | `str` | `"mongo"` | Trace storage backend (`"mongo"`, `"sqlite"`, `"memory"`) |
+| `tracer_verbose` | `bool` | `False` | Print per-span summaries to console |
+| `tracer_verify` | `bool` | `True` | Run CitationVerifier for hallucination detection |
+| `tracer_threshold` | `float` | `0.5` | Confidence threshold for hallucination flagging (0.0–1.0) |
 
 ### Custom Configuration
 

@@ -43,6 +43,9 @@ class ChatManager:
         storage: MongoStorage instance for persisting chats.
         llm: Default language model.
         max_token_limit: Token buffer limit for conversation memory.
+        enable_tracer: Whether LongTracer tracing is active.
+        tracer_verify: Run CitationVerifier for hallucination detection.
+        tracer_threshold: Hallucination detection threshold.
     """
 
     def __init__(
@@ -50,10 +53,99 @@ class ChatManager:
         storage: MongoStorage,
         llm: BaseChatModel,
         max_token_limit: int = 32000,
+        enable_tracer: bool = False,
+        tracer_verify: bool = True,
+        tracer_threshold: float = 0.5,
     ) -> None:
         self.storage = storage
         self.llm = llm
         self.max_token_limit = max_token_limit
+        self.enable_tracer = enable_tracer
+        self.tracer_verify = tracer_verify
+        self.tracer_threshold = tracer_threshold
+
+    # ─── Tracer Helpers ──────────────────────────────────────────────────────
+
+    def _build_tracer_config(
+        self,
+        bot_id: str,
+        chat_id: str,
+        chat_type: str,
+        is_agent: bool,
+    ) -> tuple[Optional[dict], Optional[object]]:
+        """Build a LangChain config dict with the appropriate tracer handler.
+
+        Uses the default tracer (no args) so that callback handler spans
+        and manual root runs target the same Tracer instance.
+
+        Args:
+            bot_id: The bot's unique identifier.
+            chat_id: The chat session's unique identifier.
+            chat_type: "rag" or "agent".
+            is_agent: Whether this is an agent bot.
+
+        Returns:
+            Tuple of (config_dict_or_None, tracer_or_None).
+            For AgentBot: tracer is None (handler auto-manages root).
+            For RAGBot: tracer is returned (caller manages root lifecycle).
+        """
+        if not self.enable_tracer:
+            return None, None
+        try:
+            from longtracer import LongTracer as LT
+
+            tracer = LT.get_tracer()  # default tracer — same one handlers use
+            if not tracer:
+                return None, None
+
+            if is_agent:
+                from longtracer.adapters.langgraph_handler import LongTracerAgentHandler
+                handler = LongTracerAgentHandler(threshold=self.tracer_threshold)
+                return {"callbacks": [handler]}, None  # handler auto-manages root
+            else:
+                from longtracer.adapters.langchain_handler import LongTracerCallbackHandler
+                handler = LongTracerCallbackHandler()
+                tracer.start_root(inputs={
+                    "bot_id": bot_id,
+                    "chat_id": chat_id,
+                    "chat_type": chat_type,
+                    "query_preview": "",
+                })
+                return {"callbacks": [handler]}, tracer  # caller manages root
+        except ImportError:
+            return None, None
+        except Exception as e:
+            print(f"[WARN] Tracer setup failed: {e}")
+            return None, None
+
+    def _inject_trace_metadata(
+        self,
+        tracer: Optional[object],
+        bot_id: str,
+        chat_id: str,
+        chat_type: str,
+    ) -> None:
+        """Inject bot_id/chat_id metadata into the current root trace run.
+
+        Uses ``tracer._safe_update_run`` (internal API) as a workaround
+        for handlers that auto-manage root without caller metadata.
+        Wrapped in try/except — never propagates.
+
+        Long-term: replace with public ``tracer.update_root_metadata()``
+        when LongTracer exposes one.
+        """
+        try:
+            if tracer and hasattr(tracer, "root_run") and tracer.root_run:
+                tracer._safe_update_run(
+                    tracer.root_run["run_id"],
+                    {
+                        "inputs.bot_id": bot_id,
+                        "inputs.chat_id": chat_id,
+                        "inputs.chat_type": chat_type,
+                    },
+                )
+        except Exception:
+            pass  # Never crash the pipeline for metadata injection
 
     # ─── Chat Session Creation ────────────────────────────────────────────────
 
@@ -181,15 +273,59 @@ class ChatManager:
                 )
                 final_query = f"Uploaded Files:\n{file_details}\n\nQuestion:\n{final_query}"
 
-            if stream:
-                return self._stream_response(
-                    final_query, bot_id, chat_id, bot_instance, query, web_source
-                )
+            # ── Tracer setup ────────────────────────────────────────────────────
+            is_agent = bot_data.get("agent_mode", False)
 
-            # ── Structured output path ──────────────────────────────────────────
-            # Only RAGBot supports invoke_structured — agent bots fall through.
-            if schema and not bot_data.get("agent_mode") and hasattr(bot_instance, "invoke_structured"):
-                structured = bot_instance.invoke_structured(final_query, schema)
+            # ── Structured output path (manual tracing, no callback handler) ─────
+            # invoke_structured bypasses self.chain, so callback-based tracing
+            # cannot capture it. Use manual start_root/span/end_root instead.
+            # Checked before standard tracer setup so we don't create an unused
+            # callback handler + root trace.
+            if schema and not is_agent and hasattr(bot_instance, "invoke_structured"):
+                structured_tracer = None
+                if self.enable_tracer:
+                    try:
+                        from longtracer import LongTracer as LT
+                        structured_tracer = LT.get_tracer()
+                        if structured_tracer:
+                            structured_tracer.start_root(inputs={
+                                "bot_id": bot_id,
+                                "chat_id": chat_id,
+                                "chat_type": "structured",
+                                "query_preview": query[:300],
+                            })
+                    except ImportError:
+                        pass
+                    except Exception as te:
+                        print(f"[WARN] Structured tracer setup failed: {te}")
+                        structured_tracer = None
+
+                try:
+                    if structured_tracer:
+                        with structured_tracer.span(
+                            "invoke_structured",
+                            run_type="llm",
+                            inputs={
+                                "query_preview": query[:300],
+                                "schema_keys": list(schema.get("properties", {}).keys()) if isinstance(schema, dict) else [],
+                            },
+                        ) as span:
+                            structured = bot_instance.invoke_structured(final_query, schema)
+                            span.set_output({
+                                "result_status": structured.get("status", "unknown"),
+                                "answer_preview": str(structured.get("data", ""))[:500],
+                            })
+                    else:
+                        structured = bot_instance.invoke_structured(final_query, schema)
+                finally:
+                    if structured_tracer:
+                        try:
+                            structured_tracer.end_root(outputs={
+                                "answer_preview": str(structured.get("data", ""))[:300],
+                            })
+                        except Exception:
+                            pass
+
                 self.storage.store_chat(
                     bot_id=bot_id,
                     chat_id=chat_id,
@@ -200,8 +336,33 @@ class ChatManager:
                 )
                 return structured, web_source
 
+            # ── RAG / Agent path (callback-based tracing) ─────────────────────────
+            config, tracer = self._build_tracer_config(
+                bot_id, chat_id, "agent" if is_agent else "rag", is_agent,
+            )
+
+            if stream:
+                return self._stream_response(
+                    final_query, bot_id, chat_id, bot_instance, query, web_source,
+                    config=config, tracer=tracer,
+                )
+
             # ── Standard path ────────────────────────────────────────────────────
-            answer = bot_instance.invoke(final_query)
+            answer = bot_instance.invoke(final_query, config=config)
+
+            # Agent path: inject metadata (handler auto-managed root)
+            if is_agent:
+                try:
+                    from longtracer import LongTracer as LT
+                    self._inject_trace_metadata(
+                        LT.get_tracer(), bot_id, chat_id, "agent",
+                    )
+                except Exception:
+                    pass
+
+            # RAG path: caller manages root lifecycle
+            if tracer:
+                tracer.end_root(outputs={"answer_preview": answer[:300]})
 
             self.storage.store_chat(
                 bot_id=bot_id,
@@ -214,6 +375,12 @@ class ChatManager:
 
             return answer, web_source
         except Exception as e:
+            # Ensure tracer root is closed even on error
+            try:
+                if tracer:
+                    tracer.end_root(outputs={"error": str(e)})
+            except Exception:
+                pass
             print(f"[ERROR] Error getting response: {e}")
             return "", []
 
@@ -225,20 +392,38 @@ class ChatManager:
         bot_instance: Union[RAGBot, AgentBot],
         original_query: str,
         web_source: list[str],
+        config: Optional[dict] = None,
+        tracer: Optional[object] = None,
     ) -> Iterator[str]:
         """Internal streaming response generator."""
         full_response = ""
-        for chunk in bot_instance.stream(final_query):
-            full_response += chunk
-            yield chunk
-
-        self.storage.store_chat(
-            bot_id=bot_id,
-            chat_id=chat_id,
-            query=original_query,
-            answer=full_response,
-            web_source=web_source,
-        )
+        try:
+            for chunk in bot_instance.stream(final_query, config=config):
+                full_response += chunk
+                yield chunk
+        finally:
+            # Close tracer root after streaming completes
+            try:
+                if tracer:
+                    tracer.end_root(outputs={"answer_preview": full_response[:300]})
+            except Exception:
+                pass
+            # Agent metadata injection
+            try:
+                if config and not tracer:  # agent path: handler managed root, tracer is None
+                    from longtracer import LongTracer as LT
+                    self._inject_trace_metadata(
+                        LT.get_tracer(), bot_id, chat_id, "agent",
+                    )
+            except Exception:
+                pass
+            self.storage.store_chat(
+                bot_id=bot_id,
+                chat_id=chat_id,
+                query=original_query,
+                answer=full_response,
+                web_source=web_source,
+            )
 
     async def aget_response(
         self,
@@ -281,17 +466,39 @@ class ChatManager:
                 )
                 final_query = f"Uploaded Files:\n{file_details}\n\nQuestion:\n{final_query}"
 
-            full_response = ""
-            async for chunk in bot_instance.astream(final_query):
-                full_response += chunk
-                yield chunk
-
-            self.storage.store_chat(
-                bot_id=bot_id,
-                chat_id=chat_id,
-                query=query,
-                answer=full_response,
+            # ── Tracer setup ────────────────────────────────────────────────────
+            is_agent = bot_data.get("agent_mode", False)
+            config, tracer = self._build_tracer_config(
+                bot_id, chat_id, "agent" if is_agent else "rag", is_agent,
             )
+
+            full_response = ""
+            try:
+                async for chunk in bot_instance.astream(final_query, config=config):
+                    full_response += chunk
+                    yield chunk
+            finally:
+                # Close tracer root after streaming completes
+                try:
+                    if tracer:
+                        tracer.end_root(outputs={"answer_preview": full_response[:300]})
+                except Exception:
+                    pass
+                # Agent metadata injection
+                try:
+                    if config and not tracer:
+                        from longtracer import LongTracer as LT
+                        self._inject_trace_metadata(
+                            LT.get_tracer(), bot_id, chat_id, "agent",
+                        )
+                except Exception:
+                    pass
+                self.storage.store_chat(
+                    bot_id=bot_id,
+                    chat_id=chat_id,
+                    query=query,
+                    answer=full_response,
+                )
         except Exception as e:
             print(f"[ERROR] Error in async response: {e}")
 
@@ -340,11 +547,58 @@ class ChatManager:
                 )
                 final_query = f"Uploaded Files:\n{file_details}\n\nQuestion:\n{query}"
 
-            prompt, doc_sources = assistant.get_answer(final_query, web_text)
+            prompt, doc_sources, raw_docs = assistant.get_answer(final_query, web_text)
             vision = VisionBot(prompt_template=prompt, llm=self.llm)
             vision.create_vision_bot(image_paths)
             vision_response = vision.get_response(query)
             assistant.save_chat_history(query, vision_response)
+
+            # ── Post-hoc tracing ──────────────────────────────────────────────
+            if self.enable_tracer:
+                try:
+                    from longtracer import LongTracer as LT
+                    tracer = LT.get_tracer()
+                    if tracer:
+                        tracer.start_root(inputs={
+                            "bot_id": bot_id,
+                            "chat_id": vision_chat_id,
+                            "chat_type": "vision",
+                            "query_preview": query[:300],
+                            "image_count": len(image_paths),
+                        })
+                        # Retrieval span
+                        with tracer.span("retrieval", run_type="retriever") as span:
+                            span.set_output({
+                                "count": len(raw_docs),
+                                "sources": doc_sources,
+                            })
+                        # LLM span
+                        with tracer.span("llm_call", run_type="llm") as span:
+                            span.set_output({
+                                "answer_preview": vision_response[:500],
+                            })
+                        # Verification (only if tracer_verify=True and sources exist)
+                        if self.tracer_verify and raw_docs:
+                            try:
+                                from longtracer.guard.verifier import CitationVerifier
+                                source_texts = [d.page_content for d in raw_docs]
+                                result = CitationVerifier(
+                                    threshold=self.tracer_threshold,
+                                ).verify_parallel(vision_response, source_texts)
+                                with tracer.span("grounding", run_type="chain") as span:
+                                    span.set_output({
+                                        "trust_score": result.trust_score,
+                                        "verdict": result.verdict,
+                                        "summary": result.summary,
+                                        "hallucination_count": result.hallucination_count,
+                                    })
+                            except Exception as ve:
+                                print(f"[WARN] Vision verification failed: {ve}")
+                        tracer.end_root(outputs={"answer_preview": vision_response[:300]})
+                except ImportError:
+                    pass
+                except Exception as te:
+                    print(f"[WARN] Vision tracer failed: {te}")
 
             self.storage.store_vision_chat(
                 bot_id=bot_id,

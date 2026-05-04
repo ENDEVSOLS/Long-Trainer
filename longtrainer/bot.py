@@ -82,24 +82,25 @@ class RAGBot:
         self.chat_history.add_message(HumanMessage(content=query))
         self.chat_history.add_message(AIMessage(content=answer))
 
-    def invoke(self, query: str) -> str:
+    def invoke(self, query: str, config: Optional[dict] = None) -> str:
         """Get a complete response for a query.
 
         Args:
             query: The user's question.
+            config: Optional LangChain config dict (e.g. callbacks).
 
         Returns:
             The assistant's response string.
         """
         try:
-            result = self.chain.invoke({"question": query})
+            result = self.chain.invoke({"question": query}, config=config)
             self.save_context(query, result)
             return result
         except Exception as e:
             print(f"[ERROR] Error in RAGBot invoke: {e}")
             return ""
 
-    def invoke_structured(self, query: str, schema: dict):
+    def invoke_structured(self, query: str, schema: dict, config: Optional[dict] = None):
         """Single LLM call: retrieve docs → validate output against JSON schema.
 
         Correct message ordering for all LLM providers:
@@ -213,36 +214,38 @@ class RAGBot:
             return _partial(f"Unexpected error: {str(e)}")
 
 
-    def stream(self, query: str) -> Iterator[str]:
+    def stream(self, query: str, config: Optional[dict] = None) -> Iterator[str]:
         """Stream response tokens for a query.
 
         Args:
             query: The user's question.
+            config: Optional LangChain config dict (e.g. callbacks).
 
         Yields:
             Response tokens as strings.
         """
         try:
             full_response = ""
-            for chunk in self.chain.stream({"question": query}):
+            for chunk in self.chain.stream({"question": query}, config=config):
                 full_response += chunk
                 yield chunk
             self.save_context(query, full_response)
         except Exception as e:
             print(f"[ERROR] Error in RAGBot stream: {e}")
 
-    async def astream(self, query: str) -> AsyncIterator[str]:
+    async def astream(self, query: str, config: Optional[dict] = None) -> AsyncIterator[str]:
         """Async stream response tokens for a query.
 
         Args:
             query: The user's question.
+            config: Optional LangChain config dict (e.g. callbacks).
 
         Yields:
             Response tokens as strings.
         """
         try:
             full_response = ""
-            async for chunk in self.chain.astream({"question": query}):
+            async for chunk in self.chain.astream({"question": query}, config=config):
                 full_response += chunk
                 yield chunk
             self.save_context(query, full_response)
@@ -310,11 +313,12 @@ class AgentBot:
         self.chat_history.add_message(HumanMessage(content=query))
         self.chat_history.add_message(AIMessage(content=answer))
 
-    def invoke(self, query: str) -> str:
+    def invoke(self, query: str, config: Optional[dict] = None) -> str:
         """Get a complete response using the agent.
 
         Args:
             query: The user's question.
+            config: Optional LangChain config dict (e.g. callbacks).
 
         Returns:
             The agent's final response string.
@@ -323,7 +327,7 @@ class AgentBot:
             messages = list(self.chat_history.messages) + [
                 HumanMessage(content=query),
             ]
-            result = self.agent.invoke({"messages": messages})
+            result = self.agent.invoke({"messages": messages}, config=config)
             answer = result["messages"][-1].content if result.get("messages") else ""
             self.save_context(query, answer)
             return answer
@@ -331,11 +335,12 @@ class AgentBot:
             print(f"[ERROR] Error in AgentBot invoke: {e}")
             return ""
 
-    def stream(self, query: str) -> Iterator[str]:
+    def stream(self, query: str, config: Optional[dict] = None) -> Iterator[str]:
         """Stream response tokens from the agent.
 
         Args:
             query: The user's question.
+            config: Optional LangChain config dict (e.g. callbacks).
 
         Yields:
             Response tokens as strings.
@@ -347,6 +352,7 @@ class AgentBot:
             full_response = ""
             for chunk in self.agent.stream(
                 {"messages": messages},
+                config=config,
                 stream_mode="messages",
             ):
                 if hasattr(chunk, "__iter__") and len(chunk) == 2:
@@ -362,11 +368,12 @@ class AgentBot:
         except Exception as e:
             print(f"[ERROR] Error in AgentBot stream: {e}")
 
-    async def astream(self, query: str) -> AsyncIterator[str]:
+    async def astream(self, query: str, config: Optional[dict] = None) -> AsyncIterator[str]:
         """Async stream response tokens from the agent.
 
         Args:
             query: The user's question.
+            config: Optional LangChain config dict (e.g. callbacks).
 
         Yields:
             Response tokens as strings.
@@ -378,6 +385,7 @@ class AgentBot:
             full_response = ""
             async for chunk in self.agent.astream(
                 {"messages": messages},
+                config=config,
                 stream_mode="messages",
             ):
                 if hasattr(chunk, "__iter__") and len(chunk) == 2:
