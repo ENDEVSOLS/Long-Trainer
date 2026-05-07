@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/mohsin1218/Long-Trainer/blob/master/assets/longtrainer.png?raw=true" alt="LongTrainer Logo">
+  <img src="https://github.com/mohsin1218/Long-Trainer/blob/master/assets/longtrainer.png?raw=true" alt="LongTrainer Logo" width="320">
 </p>
 
 <h1 align="center">LongTrainer 1.3.1 — Production-Ready RAG Framework</h1>
@@ -28,23 +28,22 @@
   <a href="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/LICENSE">
     <img src="https://img.shields.io/github/license/ENDEVSOLS/Long-Trainer" alt="License">
   </a>
-  <a href="https://opencollective.com/longtrainer">
-    <img src="https://img.shields.io/opencollective/all/longtrainer?label=sponsors" alt="Open Collective">
-  </a>
+  
 </p>
 
 <p align="center">
   <a href="https://endevsols.github.io/Long-Trainer/">Documentation</a> •
   <a href="#quick-start-">Quick Start</a> •
   <a href="#features-">Features</a> •
-  <a href="#migration-from-034">Migration from 0.3.4</a> •
-  <a href="#support-the-project-">Sponsor</a>
+  <a href="#migration-from-034">Migration from 0.3.4</a> 
 </p>
 
 ---
 
-> **"5 lines to production RAG"** — Multi-tenant bots, streaming, tools, and persistent memory.
 
+> [!TIP]
+> This package is part of the **[EnDevSols Long-Suite](https://github.com/ENDEVSOLS/Long-Suite)**—the definitive lifecycle for production RAG. Join our **[Central Community Hub](https://github.com/ENDEVSOLS/Long-Suite/discussions)** for architecture advice and support.
+> 
 ---
 
 ## What is LongTrainer?
