@@ -13,13 +13,13 @@ import click
 from longtrainer import __version__
 
 
+# ─── init ─────────────────────────────────────────────────────────────────────
+
 @click.group()
 @click.version_option(__version__, prog_name="longtrainer")
 def cli() -> None:
     """LongTrainer — Production-Ready RAG Framework CLI."""
 
-
-# ─── init ─────────────────────────────────────────────────────────────────────
 
 @cli.command()
 @click.option(
@@ -59,7 +59,7 @@ def cli() -> None:
     prompt="Vector Store provider",
     default="faiss",
     type=click.Choice([
-        "faiss", "pinecone", "chroma", "qdrant", 
+        "faiss", "pinecone", "chroma", "qdrant",
         "pgvector", "mongodb", "milvus", "weaviate", "elasticsearch"
     ]),
     help="Provider for vector database.",
@@ -123,6 +123,13 @@ def init(
             "chunk_overlap": chunk_overlap,
         },
         "encrypt_chats": encrypt_chats,
+        "rate_limiting": {
+            "enabled": False,
+            "llm_rpm": 60,
+            "embedding_rpm": 120,
+            "tool_rpm": 30,
+            "ingestion_rpm": 10,
+        },
         "server": {
             "host": "0.0.0.0",
             "port": 8000,
@@ -133,9 +140,9 @@ def init(
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
     click.secho(f"\n✅ Config written to {output}", fg="green", bold=True)
-    click.echo("  Next steps:")
-    click.echo(f"    1. Review and edit {output}")
-    click.echo("    2. Run: longtrainer serve")
+    click.echo(f"\nNext steps:")
+    click.echo(f"  1. Review and edit {output}")
+    click.echo(f"  2. Run: longtrainer serve\n")
 
 
 # ─── serve ────────────────────────────────────────────────────────────────────
@@ -158,11 +165,7 @@ def serve(config: str, host: str | None, port: int | None, reload_: bool) -> Non
     try:
         import uvicorn
     except ImportError:
-        click.secho(
-            "❌ uvicorn not installed. Run: pip install longtrainer[api]",
-            fg="red",
-            bold=True,
-        )
+        click.secho("❌ uvicorn not installed. Run: pip install longtrainer[api]", fg="red")
         raise SystemExit(1)
 
     with open(config) as f:
@@ -172,11 +175,11 @@ def serve(config: str, host: str | None, port: int | None, reload_: bool) -> Non
     final_host = host or server_cfg.get("host", "0.0.0.0")
     final_port = port or server_cfg.get("port", 8000)
 
-    click.secho(
-        f"\n🚀 Starting LongTrainer API server on {final_host}:{final_port}",
-        fg="cyan",
-        bold=True,
-    )
+    click.secho(f"\n🚀 LongTrainer {__version__} API Server", fg="cyan", bold=True)
+    click.echo(f"   Host   : {final_host}")
+    click.echo(f"   Port   : {final_port}")
+    click.echo(f"   Docs   : http://{final_host}:{final_port}/docs")
+    click.echo(f"   Config : {config}\n")
 
     uvicorn.run(
         "longtrainer.api:app",
@@ -194,7 +197,8 @@ def _get_trainer(config_path: str = "longtrainer.yaml"):
     from longtrainer.trainer import LongTrainer
 
     if not os.path.exists(config_path):
-        click.secho(f"❌ Config file '{config_path}' not found. Run 'longtrainer init' first.", fg="red", bold=True)
+        click.secho(f"❌ Config file {config_path!r} not found.", fg="red")
+        click.echo("Run: longtrainer init")
         raise SystemExit(1)
 
     with open(config_path) as f:
@@ -225,12 +229,15 @@ def bot_list(config: str) -> None:
     trainer = _get_trainer(config)
     bots = list(trainer.bots.find({}, {"_id": 0}))
     if not bots:
-        click.secho("No bots found.", fg="yellow")
+        click.secho("No bots deployed yet.", fg="yellow")
+        click.echo("Create one with: longtrainer bot create")
         return
 
-    click.secho(f"\n🤖 Found {len(bots)} bots:", fg="cyan", bold=True)
+    click.secho(f"\n🤖 Deployed Bots ({len(bots)}):\n", fg="cyan", bold=True)
     for b in bots:
-        click.echo(f"  - {b.get('bot_id', 'Unknown')}")
+        agent = "Agent" if b.get("agent_mode") else "RAG"
+        click.echo(f"  {b.get('bot_id', 'Unknown')}  [{agent}]  {b.get('db_path', '')}")
+    click.echo()
 
 
 @bot.command("create")
@@ -243,18 +250,24 @@ def bot_create(config: str, prompt: str | None, agent: bool, tools: str | None) 
     trainer = _get_trainer(config)
     bot_id = trainer.initialize_bot_id()
     if not bot_id:
-        click.secho("❌ Failed to create bot.", fg="red", bold=True)
+        click.secho("❌ Failed to create bot.", fg="red")
         raise SystemExit(1)
 
     tool_list = [t.strip() for t in tools.split(",")] if tools else []
-    
+
     trainer.create_bot(
-        bot_id=bot_id, 
-        prompt_template=prompt, 
-        agent_mode=agent, 
+        bot_id=bot_id,
+        prompt_template=prompt,
+        agent_mode=agent,
         tools=tool_list if tool_list else None
     )
-    click.secho(f"✅ Created new bot: {bot_id}", fg="green", bold=True)
+    click.secho(f"\n✅ Bot created successfully!", fg="green", bold=True)
+    click.echo(f"   Bot ID    : {bot_id}")
+    click.echo(f"   Agent Mode: {'Yes' if agent else 'No (RAG)'}")
+    click.echo(f"   Tools     : {', '.join(tool_list) if tool_list else 'none'}")
+    click.echo(f"\nNext steps:")
+    click.echo(f"  longtrainer add-doc {bot_id} <file.pdf>")
+    click.echo(f"  longtrainer chat {bot_id}\n")
 
 
 @bot.command("delete")
@@ -265,9 +278,10 @@ def bot_delete(bot_id: str, config: str) -> None:
     trainer = _get_trainer(config)
     try:
         trainer.delete_chatbot(bot_id)
-        click.secho(f"🗑️ Deleted bot: {bot_id}", fg="yellow")
+        click.secho(f"🗑️  Bot deleted: {bot_id}", fg="yellow")
+        click.echo("All associated data, chat history, and vector store removed.")
     except ValueError as e:
-        click.secho(f"❌ Error: {e}", fg="red")
+        click.secho(f"❌ {e}", fg="red")
         raise SystemExit(1)
 
 
@@ -279,28 +293,50 @@ def bot_delete(bot_id: str, config: str) -> None:
 @click.option("--config", "-c", default="longtrainer.yaml", help="Path to config file.")
 def add_doc(bot_id: str, path: str, config: str) -> None:
     """Upload a document to a bot. PATH can be a file path or URL."""
+    import time as _time
+    from longtrainer.rate_limiter import LongTrainerRateLimitError
+
     trainer = _get_trainer(config)
 
     try:
         trainer.load_bot(bot_id)
     except Exception as e:
-        click.secho(f"❌ Failed to load bot {bot_id}.", fg="red")
+        click.secho(f"❌ Failed to load bot {bot_id}: {e}", fg="red")
         raise SystemExit(1)
 
-    click.echo(f"⏳ Ingesting '{path}' into {bot_id} ...")
+    max_retries = 3
+    for attempt in range(max_retries + 1):
+        try:
+            click.echo(f"⏳ Ingesting {path}...")
 
-    if path.startswith("http://") or path.startswith("https://"):
-        trainer.add_document_from_link([path], bot_id)
-    else:
-        import os
-        if not os.path.exists(path):
-            click.secho(f"❌ File '{path}' does not exist.", fg="red")
-            raise SystemExit(1)
-        trainer.add_document_from_path(path, bot_id)
+            if path.startswith("http://") or path.startswith("https://"):
+                trainer.add_document_from_link([path], bot_id)
+            else:
+                import os
+                if not os.path.exists(path):
+                    click.secho(f"❌ File {path!r} does not exist.", fg="red")
+                    raise SystemExit(1)
+                trainer.add_document_from_path(path, bot_id)
 
-    # Refresh the FAISS index by creating the bot again
-    trainer.create_bot(bot_id)
-    click.secho("✅ Document added successfully!", fg="green", bold=True)
+            trainer.create_bot(bot_id)
+            click.secho(f"✅ Document added: {path}", fg="green")
+            click.echo(f"   Bot: {bot_id}")
+            click.echo(f"\nChat with your bot: longtrainer chat {bot_id}\n")
+            break
+
+        except LongTrainerRateLimitError as e:
+            if attempt >= max_retries - 1:
+                click.secho("❌ Rate limit exceeded. Please try again later.", fg="red")
+                raise SystemExit(1)
+            wait_time = int(e.retry_after) + 1
+            click.secho(
+                f"⏳ Rate limit hit ({e.resource}). Retrying in {wait_time}s... "
+                f"(attempt {attempt + 1}/{max_retries})",
+                fg="yellow",
+            )
+            with click.progressbar(range(wait_time), label="Waiting") as bar:
+                for _ in bar:
+                    _time.sleep(1)
 
 
 # ─── chat ─────────────────────────────────────────────────────────────────────
@@ -310,9 +346,12 @@ def add_doc(bot_id: str, path: str, config: str) -> None:
 @click.option("--config", "-c", default="longtrainer.yaml", help="Path to config file.")
 def chat_command(bot_id: str, config: str) -> None:
     """Start an interactive terminal chat with a bot."""
+    import time
+    from longtrainer.rate_limiter import LongTrainerRateLimitError
+
     trainer = _get_trainer(config)
 
-    click.echo(f"⏳ Loading bot {bot_id} ...")
+    click.echo(f"⏳ Loading bot {bot_id}...")
     try:
         trainer.load_bot(bot_id)
     except Exception as e:
@@ -321,26 +360,46 @@ def chat_command(bot_id: str, config: str) -> None:
 
     chat_id = trainer.new_chat(bot_id)
 
-    click.secho(f"\n💬 Chat session started (ID: {chat_id})", fg="cyan", bold=True)
-    click.secho("Type 'exit' or 'quit' to end the session.\n", fg="cyan")
+    click.secho(f"\n💬 LongTrainer Chat", fg="cyan", bold=True)
+    click.echo(f"   Bot    : {bot_id}")
+    click.echo(f"   Chat ID: {chat_id}")
+    click.echo(f"\nType 'exit' or 'quit' to end the session.\n")
 
     while True:
         try:
-            query = click.prompt(click.style("You", fg="green", bold=True))
-            if query.lower() in ("exit", "quit"):
+            query = click.prompt("You", prompt_suffix="> ")
+            if not query or query.lower() in ("exit", "quit"):
                 break
 
-            click.secho("Bot: ", fg="blue", bold=True, nl=False)
+            max_retries = 3
+            for attempt in range(max_retries + 1):
+                try:
+                    result = trainer.get_response(query, bot_id, chat_id)
+                    response = result[0] if isinstance(result, tuple) else str(result)
+                    click.secho(f"\nLongTrainer> ", fg="blue", bold=True, nl=False)
+                    click.echo(response)
+                    click.echo()
+                    break
 
-            for chunk in trainer.get_response(query, bot_id, chat_id, stream=True):
-                click.echo(chunk, nl=False)
-            click.echo()  # Newline after response
+                except LongTrainerRateLimitError as e:
+                    if attempt >= max_retries - 1:
+                        click.secho("❌ Rate limit exceeded. Please try again later.", fg="red")
+                        raise SystemExit(1)
+                    wait_time = int(e.retry_after) + 1
+                    click.secho(
+                        f"⏳ Rate limit hit ({e.resource}). Retrying in {wait_time}s... "
+                        f"(attempt {attempt + 1}/{max_retries})",
+                        fg="yellow",
+                    )
+                    with click.progressbar(range(wait_time), label="Waiting") as bar:
+                        for _ in bar:
+                            time.sleep(1)
 
         except (KeyboardInterrupt, EOFError):
             click.echo()
             break
 
-    click.secho("👋 Session ended.", fg="yellow")
+    click.secho("\n👋 Chat session ended.\n", fg="yellow")
 
 
 def main() -> None:

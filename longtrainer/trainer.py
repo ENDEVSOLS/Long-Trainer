@@ -80,6 +80,11 @@ class LongTrainer:
         tracer_verbose: bool = False,
         tracer_verify: bool = True,
         tracer_threshold: float = 0.5,
+        rate_limit_enabled: bool = False,
+        rate_limit_llm_rpm: int = 60,
+        rate_limit_embedding_rpm: int = 120,
+        rate_limit_tool_rpm: int = 30,
+        rate_limit_ingestion_rpm: int = 10,
     ) -> None:
         # Models
         self.llm = llm or get_llm(llm_provider, default_llm)
@@ -112,6 +117,11 @@ class LongTrainer:
             tracer_verbose=tracer_verbose,
             tracer_verify=tracer_verify,
             tracer_threshold=tracer_threshold,
+            rate_limit_enabled=rate_limit_enabled,
+            rate_limit_llm_rpm=rate_limit_llm_rpm,
+            rate_limit_embedding_rpm=rate_limit_embedding_rpm,
+            rate_limit_tool_rpm=rate_limit_tool_rpm,
+            rate_limit_ingestion_rpm=rate_limit_ingestion_rpm,
         )
 
         # Managers
@@ -137,11 +147,25 @@ class LongTrainer:
             except Exception as e:
                 print(f"[WARN] LongTracer init failed: {e}")
 
+        # Rate limiter (None when disabled — zero overhead)
+        self._rate_limiter = None
+        if rate_limit_enabled:
+            from longtrainer.rate_limiter import RateLimitConfig, TenantRateLimiter
+            rl_config = RateLimitConfig(
+                enabled=True,
+                llm_rpm=rate_limit_llm_rpm,
+                embedding_rpm=rate_limit_embedding_rpm,
+                tool_rpm=rate_limit_tool_rpm,
+                ingestion_rpm=rate_limit_ingestion_rpm,
+            )
+            self._rate_limiter = TenantRateLimiter(rl_config)
+
         self._chat_manager = ChatManager(
             self._storage, self.llm, max_token_limit,
             enable_tracer=self._tracer_available,
             tracer_verify=tracer_verify,
             tracer_threshold=tracer_threshold,
+            rate_limiter=self._rate_limiter,
         )
 
         # Bot runtime state
@@ -404,6 +428,8 @@ class LongTrainer:
         """Load and store documents from a file path (blocking sync)."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id)
         self._doc_manager.add_document_from_path(path, bot_id, use_unstructured)
 
     async def aadd_document_from_path(
@@ -421,6 +447,8 @@ class LongTrainer:
         """
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id)
         await self._doc_manager.aadd_document_from_path(path, bot_id, use_unstructured)
 
     def add_documents_from_paths(
@@ -438,78 +466,104 @@ class LongTrainer:
         """
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id, tokens=len(paths))
         self._doc_manager.add_documents_from_paths(paths, bot_id, use_unstructured)
 
     def add_document_from_link(self, links: list[str], bot_id: str) -> None:
         """Load and store documents from web links."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id, tokens=len(links))
         self._doc_manager.add_document_from_link(links, bot_id)
 
     def add_document_from_query(self, search_query: str, bot_id: str) -> None:
         """Load and store documents from a Wikipedia search."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id)
         self._doc_manager.add_document_from_query(search_query, bot_id)
 
     def add_document_from_github(self, repo_url: str, bot_id: str, branch: str = "main", access_token: Optional[str] = None) -> None:
         """Load and store documents from a GitHub repository."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id)
         self._doc_manager.add_document_from_github(repo_url, bot_id, branch, access_token)
 
     def add_document_from_notion(self, path: str, bot_id: str) -> None:
         """Load and store documents from an exported Notion directory."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id)
         self._doc_manager.add_document_from_notion(path, bot_id)
 
     def add_document_from_crawl(self, url: str, bot_id: str, max_depth: int = 2) -> None:
         """Deep crawl a website and store documents."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id)
         self._doc_manager.add_document_from_crawl(url, bot_id, max_depth)
 
     def add_document_from_dynamic_loader(self, bot_id: str, loader_class_name: str, **kwargs) -> None:
         """Instantiate ANY LangChain document loader dynamically."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id)
         self._doc_manager.add_document_from_dynamic_loader(bot_id, loader_class_name, **kwargs)
 
     def add_document_from_directory(self, path: str, bot_id: str, glob: str = "**/*") -> None:
         """Load documents recursively from a local directory."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id)
         self._doc_manager.add_document_from_directory(path, bot_id, glob)
 
     def add_document_from_json(self, path: str, bot_id: str, jq_schema: str = ".") -> None:
         """Load documents from a JSON or JSONL file."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id)
         self._doc_manager.add_document_from_json(path, bot_id, jq_schema)
 
     def add_document_from_aws_s3(self, bucket: str, bot_id: str, prefix: str = "", aws_access_key_id: Optional[str] = None, aws_secret_access_key: Optional[str] = None) -> None:
         """Load documents from an AWS S3 Directory."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id)
         self._doc_manager.add_document_from_aws_s3(bucket, bot_id, prefix, aws_access_key_id, aws_secret_access_key)
 
     def add_document_from_google_drive(self, folder_id: str, bot_id: str, credentials_path: str = "credentials.json") -> None:
         """Load documents from a Google Drive folder."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id)
         self._doc_manager.add_document_from_google_drive(folder_id, bot_id, credentials_path)
 
     def add_document_from_confluence(self, url: str, username: str, api_key: str, bot_id: str, space_key: Optional[str] = None) -> None:
         """Load documents from a Confluence Workspace."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id)
         self._doc_manager.add_document_from_confluence(url, username, api_key, bot_id, space_key)
 
     def pass_documents(self, documents: list, bot_id: str) -> None:
         """Store pre-loaded LangChain documents."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self._rate_limiter:
+            self._rate_limiter.check_and_consume("ingestion_ops", bot_id, tokens=len(documents))
         self._doc_manager.pass_documents(documents, bot_id)
     # ─── Tool Management ──────────────────────────────────────────────────────
 

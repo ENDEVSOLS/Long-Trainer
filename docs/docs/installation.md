@@ -52,10 +52,10 @@ brew install libmagic poppler tesseract qpdf libreoffice pandoc
 
 ```python
 import longtrainer
-print(longtrainer.__version__)  # Should print "1.3.0"
+print(longtrainer.__version__)  # Should print "1.3.1"
 
 from longtrainer import LongTrainer, ToolRegistry, web_search
-print("LongTrainer 1.3.0 installed successfully!")
+print("LongTrainer 1.3.1 installed successfully!")
 ```
 
 ## Environment Variables

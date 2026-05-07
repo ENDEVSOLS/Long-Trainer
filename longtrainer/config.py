@@ -66,4 +66,11 @@ class LongTrainerConfig(BaseModel):
     tracer_verify: bool = True
     tracer_threshold: float = 0.5
 
+    # Rate limiting
+    rate_limit_enabled: bool = False
+    rate_limit_llm_rpm: int = 60
+    rate_limit_embedding_rpm: int = 120
+    rate_limit_tool_rpm: int = 30
+    rate_limit_ingestion_rpm: int = 10
+
     model_config = {"arbitrary_types_allowed": True}
