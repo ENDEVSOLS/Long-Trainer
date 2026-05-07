@@ -145,8 +145,8 @@ time.sleep(2)
 # Initialize steps
 steps = [
     ("1. Initialize LongTrainer", "running", "Connecting to MongoDB..."),
-    ("2. Create RAG Bot", "pending", "Waiting..."),
-    ("3. Ingest Documents", "pending", "Waiting..."),
+    ("2. Ingest Documents", "pending", "Waiting..."),
+    ("3. Create RAG Bot", "pending", "Waiting..."),
     ("4. Test Retrieval", "pending", "Waiting..."),
     ("5. Start Chat Session", "pending", "Waiting..."),
     ("6. Q&A Exchanges", "pending", "Waiting..."),
@@ -175,22 +175,8 @@ with Live(console=console, refresh_per_second=10) as live:
     live.update(Panel(create_progress_table(steps), title="🔄 Workflow Progress", border_style="cyan"))
     time.sleep(0.8)
     
-    # Step 2: Create Bot
-    steps[1] = ("2. Create RAG Bot", "running", "Creating bot...")
-    live.update(Panel(create_progress_table(steps), title="🔄 Workflow Progress", border_style="cyan"))
-    
-    bot_id = trainer.initialize_bot_id()
-    trainer.create_bot(
-        bot_id=bot_id,
-        prompt_template="You are a helpful assistant that answers questions about Python and machine learning.",
-    )
-    
-    steps[1] = ("2. Create RAG Bot", "done", f"Bot ID: {bot_id[:8]}...")
-    live.update(Panel(create_progress_table(steps), title="🔄 Workflow Progress", border_style="cyan"))
-    time.sleep(0.8)
-    
-    # Step 3: Ingest Documents
-    steps[2] = ("3. Ingest Documents", "running", "Building knowledge base...")
+    # Step 2: Ingest Documents
+    steps[1] = ("2. Ingest Documents", "running", "Building knowledge base...")
     live.update(Panel(create_progress_table(steps), title="🔄 Workflow Progress", border_style="cyan"))
     
     from langchain_core.documents import Document
@@ -232,11 +218,25 @@ with Live(console=console, refresh_per_second=10) as live:
         ),
     ]
     
+    bot_id = trainer.initialize_bot_id()
     trainer.pass_documents(documents=sample_docs, bot_id=bot_id)
     
-    steps[2] = ("3. Ingest Documents", "done", f"{len(sample_docs)} docs in vector store")
+    steps[1] = ("2. Ingest Documents", "done", f"{len(sample_docs)} docs in DB")
     live.update(Panel(create_progress_table(steps), title="🔄 Workflow Progress", border_style="cyan"))
     time.sleep(0.5)
+
+    # Step 3: Create Bot (Embeds Documents)
+    steps[2] = ("3. Create RAG Bot", "running", "Embedding docs...")
+    live.update(Panel(create_progress_table(steps), title="🔄 Workflow Progress", border_style="cyan"))
+    
+    trainer.create_bot(
+        bot_id=bot_id,
+        prompt_template="You are a helpful assistant that answers questions about Python and machine learning.",
+    )
+    
+    steps[2] = ("3. Create RAG Bot", "done", f"Bot ID: {bot_id[:8]}...")
+    live.update(Panel(create_progress_table(steps), title="🔄 Workflow Progress", border_style="cyan"))
+    time.sleep(0.8)
     
     # Show documents
     docs_display = Group(
