@@ -129,7 +129,7 @@ def show_qa_panel(question, answer):
 # Build vectorstore kwargs
 vs_kwargs = {}
 if VECTORSTORE == "qdrant":
-    vs_kwargs = {"location": ":memory:"}
+    vs_kwargs = {"path": "qdrant_db"}
 
 # Show configuration
 config = {
