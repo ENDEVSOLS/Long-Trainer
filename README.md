@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/assets/longtrainer.png?raw=true" alt="LongTrainer Logo">
+  <img src="https://github.com/mohsin1218/Long-Trainer/blob/master/assets/longtrainer.png?raw=true" alt="LongTrainer Logo">
 </p>
 
 <h1 align="center">LongTrainer 1.3.1 — Production-Ready RAG Framework</h1>
@@ -112,7 +112,7 @@ brew install libmagic poppler tesseract qpdf libreoffice pandoc
 ### 🎬 Complete Workflow Demo
 
 <p align="center">
-  <img src="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/assets/longtrainer-demo.png?raw=true" alt="LongTrainer Demo" width="700">
+  <img src="https://github.com/mohsin1218/Long-Trainer/blob/master/assets/longtrainer-demo.png?raw=true" alt="LongTrainer Demo" width="700">
 </p>
 
 > Full RAG workflow: initialize → create bot → ingest documents → vector search → Q&A — all with live progress tracking. Run it yourself: `python demos/longtrainer_demo.py`
