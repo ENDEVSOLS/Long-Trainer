@@ -11,6 +11,7 @@ nav:
   - Guides:
     - CLI & API Server: cli_api.md
     - Agent Mode & Tools: agent_mode.md
+    - Rate Limiting: rate_limiting.md
     - Observability & Tracing: tracer.md
     - Chat Management: chat_management.md
     - Supported Formats: supported_formats.md
@@ -19,12 +20,12 @@ nav:
   - Integrations:
     - LLMs: integrating_llms.md
     - Embeddings: integrating_embeddings.md
-  - Migration 1.0.0 → 1.3.0: migration.md
+  - Migration 1.0.0 → 1.3.1: migration.md
   - Migration 0.3.4 → 1.0.0: migration.md
 
 theme:
   name: material
-  logo: assets/longtrainer-logo.png
+  logo: assets/longtrainer.png
   favicon: assets/favicon.ico
   palette:
     primary: '#364f6b'

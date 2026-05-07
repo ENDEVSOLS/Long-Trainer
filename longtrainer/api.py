@@ -33,6 +33,7 @@ except ImportError:
     _SLOWAPI_AVAILABLE = False
 
 from longtrainer import __version__
+from longtrainer.rate_limiter import LongTrainerRateLimitError, _current_tenant_id
 
 # ─── Global trainer instance ─────────────────────────────────────────────────
 
@@ -64,6 +65,11 @@ def _get_trainer():
         chunk_size=cfg.get("chunking", {}).get("chunk_size", 2048),
         chunk_overlap=cfg.get("chunking", {}).get("chunk_overlap", 200),
         encrypt_chats=cfg.get("encrypt_chats", False),
+        rate_limit_enabled=cfg.get("rate_limiting", {}).get("enabled", False),
+        rate_limit_llm_rpm=cfg.get("rate_limiting", {}).get("llm_rpm", 60),
+        rate_limit_embedding_rpm=cfg.get("rate_limiting", {}).get("embedding_rpm", 120),
+        rate_limit_tool_rpm=cfg.get("rate_limiting", {}).get("tool_rpm", 30),
+        rate_limit_ingestion_rpm=cfg.get("rate_limiting", {}).get("ingestion_rpm", 10),
     )
     return _trainer
 
@@ -101,6 +107,7 @@ async def _authenticate(request: Request, x_api_key: Optional[str] = Header(defa
     """
     if not _API_KEY_AUTH_ENABLED:
         request.state.tenant_id = "default"
+        _current_tenant_id.set("default")
         return
 
     if not x_api_key:
@@ -111,12 +118,15 @@ async def _authenticate(request: Request, x_api_key: Optional[str] = Header(defa
     api_key_doc = trainer.db["api_keys"].find_one({"key": x_api_key})
 
     if api_key_doc:
-        request.state.tenant_id = api_key_doc.get("tenant_id", "default")
+        tenant_id = api_key_doc.get("tenant_id", "default")
+        request.state.tenant_id = tenant_id
+        _current_tenant_id.set(tenant_id)
         return
 
     # Fallback: check against the global env var key
     if x_api_key == os.environ.get("SERVER_AUTH_KEY"):
         request.state.tenant_id = "default"
+        _current_tenant_id.set("default")
         return
 
     raise HTTPException(status_code=403, detail="Invalid API key.")
@@ -132,10 +142,25 @@ app = FastAPI(
     dependencies=[Depends(_authenticate)],
 )
 
+@app.exception_handler(LongTrainerRateLimitError)
+async def execution_rate_limit_handler(request: Request, exc: LongTrainerRateLimitError):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": str(exc)},
+        headers={"Retry-After": str(int(exc.retry_after) + 1)},
+    )
+
 # P3-7: Rate limiting — in-memory by default, Redis via config
 if _SLOWAPI_AVAILABLE:
     _rate_limit_storage = os.environ.get("LONGTRAINER_RATE_LIMIT_STORAGE", "memory://")
-    limiter = Limiter(key_func=get_remote_address, storage_uri=_rate_limit_storage)
+    def _get_rate_limit_key(request: Request) -> str:
+        """Rate limit key: use tenant_id if authenticated, else IP address."""
+        tenant_id = getattr(request.state, "tenant_id", None)
+        if tenant_id and tenant_id != "default":
+            return f"tenant:{tenant_id}"
+        return get_remote_address(request)
+
+    limiter = Limiter(key_func=_get_rate_limit_key, storage_uri=_rate_limit_storage)
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 else:

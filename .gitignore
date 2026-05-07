@@ -27,4 +27,16 @@ testing-folder/
 uv.lock
 longtrainer.yaml
 Landing-page/
+docs/longtracer-integration/longtrainer.yaml
+
+# Demo environment
+demos/.demo_venv/
+
+# Internal blueprints & scratch files
+docs/cli-tui-overhaul/
+docs/docs-overhaul-rate-limiting/
 docs/longtracer-integration/
+more/
+demo_longtrainer.py
+demos/LONGTRAINER_DEMO.md
+demos/*.tape

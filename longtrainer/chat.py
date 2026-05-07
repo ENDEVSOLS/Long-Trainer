@@ -56,6 +56,7 @@ class ChatManager:
         enable_tracer: bool = False,
         tracer_verify: bool = True,
         tracer_threshold: float = 0.5,
+        rate_limiter=None,
     ) -> None:
         self.storage = storage
         self.llm = llm
@@ -63,6 +64,7 @@ class ChatManager:
         self.enable_tracer = enable_tracer
         self.tracer_verify = tracer_verify
         self.tracer_threshold = tracer_threshold
+        self._rate_limiter = rate_limiter
 
     # ─── Tracer Helpers ──────────────────────────────────────────────────────
 
@@ -260,6 +262,8 @@ class ChatManager:
             final_query = query
 
             if web_search and not bot_data.get("agent_mode"):
+                if self._rate_limiter:
+                    self._rate_limiter.check_and_consume("tool_calls", bot_id)
                 webdata = self._web_search(query)
                 web_source = self._extract_web_links(webdata)
                 final_query = f"{query}\n\nAdditional web context:\n{webdata}"
@@ -348,6 +352,8 @@ class ChatManager:
                 )
 
             # ── Standard path ────────────────────────────────────────────────────
+            if self._rate_limiter:
+                self._rate_limiter.check_and_consume("llm_calls", bot_id)
             answer = bot_instance.invoke(final_query, config=config)
 
             # Agent path: inject metadata (handler auto-managed root)
@@ -375,6 +381,10 @@ class ChatManager:
 
             return answer, web_source
         except Exception as e:
+            # Re-raise rate limit errors — they must propagate to API/CLI
+            from longtrainer.rate_limiter import LongTrainerRateLimitError
+            if isinstance(e, LongTrainerRateLimitError):
+                raise
             # Ensure tracer root is closed even on error
             try:
                 if tracer:
@@ -398,6 +408,8 @@ class ChatManager:
         """Internal streaming response generator."""
         full_response = ""
         try:
+            if self._rate_limiter:
+                self._rate_limiter.check_and_consume("llm_calls", bot_id)
             for chunk in bot_instance.stream(final_query, config=config):
                 full_response += chunk
                 yield chunk
@@ -455,6 +467,8 @@ class ChatManager:
             final_query = query
 
             if web_search and not bot_data.get("agent_mode"):
+                if self._rate_limiter:
+                    self._rate_limiter.check_and_consume("tool_calls", bot_id)
                 webdata = self._web_search(query)
                 final_query = f"{query}\n\nAdditional web context:\n{webdata}"
 
@@ -474,6 +488,8 @@ class ChatManager:
 
             full_response = ""
             try:
+                if self._rate_limiter:
+                    self._rate_limiter.check_and_consume("llm_calls", bot_id)
                 async for chunk in bot_instance.astream(final_query, config=config):
                     full_response += chunk
                     yield chunk
@@ -533,6 +549,8 @@ class ChatManager:
             web_source: list[str] = []
             web_text = None
             if web_search:
+                if self._rate_limiter:
+                    self._rate_limiter.check_and_consume("tool_calls", bot_id)
                 web_text = self._web_search(query)
                 web_source = self._extract_web_links(web_text)
 
@@ -548,6 +566,8 @@ class ChatManager:
                 final_query = f"Uploaded Files:\n{file_details}\n\nQuestion:\n{query}"
 
             prompt, doc_sources, raw_docs = assistant.get_answer(final_query, web_text)
+            if self._rate_limiter:
+                self._rate_limiter.check_and_consume("llm_calls", bot_id)
             vision = VisionBot(prompt_template=prompt, llm=self.llm)
             vision.create_vision_bot(image_paths)
             vision_response = vision.get_response(query)
