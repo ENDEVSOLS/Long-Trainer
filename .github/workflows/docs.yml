@@ -1,6 +1,7 @@
 name: Deploy Docs
 
 on:
+  workflow_dispatch:
   push:
     branches: ["master"]
     paths:
@@ -23,9 +24,17 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      # Reruns retain earlier artifacts; deploy only this attempt's upload.
+      PAGES_ARTIFACT_NAME: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
       - uses: actions/checkout@v4
+
+      # Enable Pages with Source = GitHub Actions in repository Settings > Pages.
+      # GITHUB_TOKEN cannot perform that one-time repository setup.
+      - name: Check GitHub Pages configuration
+        uses: actions/configure-pages@v5
 
       - uses: actions/setup-python@v5
         with:
@@ -40,8 +49,11 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
+          name: ${{ env.PAGES_ARTIFACT_NAME }}
           path: ${{ github.workspace }}/site
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: ${{ env.PAGES_ARTIFACT_NAME }}

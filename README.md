@@ -475,6 +475,18 @@ pip install mkdocs mkdocs-material
 mkdocs build --strict --config-file docs/mkdocs.yml --site-dir /tmp/longtrainer-docs
 ```
 
+To publish docs from your repository, open **Settings → Pages** and select
+**GitHub Actions** under **Build and deployment → Source**. This one-time setup
+is required for each repository, including forks; the workflow's `GITHUB_TOKEN`
+cannot enable Pages. Without it, deployment can fail with
+`Failed to create deployment (status: 404)` even when the docs build succeeds.
+After enabling Pages, push or merge the updated workflow into `master` to start
+a new deployment, or run **Actions → Deploy Docs → Run workflow** on `master`.
+Rerunning an older failed run uses its original workflow, so it will not pick up
+workflow fixes. Each attempt of the updated workflow uses a unique artifact name
+to avoid duplicate `github-pages` artifacts on reruns. Later changes to `docs/`
+deploy automatically.
+
 Local verification recorded **142 passing tests with MongoDB integration on Python 3.12**; Python 3.10/3.11 each passed **141 offline tests**, with the service test skipped. Fresh base and individual purpose installs, real tool construction and strict docs builds passed. Remote CI, human review and release publication remain pending. These checks use local fake models and do not verify live external search/finance services. See [Phase C verification](docs/phase_c_agent_types.md) and [Phase D verification](docs/phase_d_agent_surfaces.md).
 
 ---
