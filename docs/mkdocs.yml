@@ -11,6 +11,7 @@ nav:
   - Guides:
     - CLI & API Server: cli_api.md
     - Agent Mode & Tools: agent_mode.md
+    - Named Agent Types: agent_types.md
     - Rate Limiting: rate_limiting.md
     - Observability & Tracing: tracer.md
     - Chat Management: chat_management.md
@@ -20,8 +21,7 @@ nav:
   - Integrations:
     - LLMs: integrating_llms.md
     - Embeddings: integrating_embeddings.md
-  - Migration 1.0.0 → 1.3.1: migration.md
-  - Migration 0.3.4 → 1.0.0: migration.md
+  - Migration Guide: migration.md
 
 theme:
   name: material

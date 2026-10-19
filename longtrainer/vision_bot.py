@@ -11,6 +11,7 @@ from typing import Optional
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.retrievers import BaseRetriever
 
 
@@ -197,7 +198,7 @@ class VisionBot:
                 AIMessage(content=self.prompt_template),
                 HumanMessage(content=self.human_message_content),
             ])
-            return msg.content
+            return StrOutputParser().invoke(msg)
         except Exception as e:
             print(f"[ERROR] Error getting vision response: {e}")
             return ""

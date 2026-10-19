@@ -1,6 +1,4 @@
-import time
 import pytest
-import contextvars
 
 from longtrainer.rate_limiter import (
     RateLimitConfig,

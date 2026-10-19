@@ -1,4 +1,3 @@
-import os
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
@@ -76,3 +75,13 @@ def test_chat_sync_endpoint(client, mock_trainer):
         web_search=False,
         schema=None
     )
+
+
+def test_chat_schema_response_contract(client, mock_trainer):
+    schema = {"type": "object", "required": ["answer"]}
+    structured = {"status": "success", "data": {"answer": "Hello"}, "raw_llm_output": None, "error": None}
+    mock_trainer.get_response.return_value = (structured, [])
+    response = client.post("/bots/bot_123/chats/chat_456", json={"query": "Hello", "schema": schema})
+    assert response.status_code == 200
+    assert response.json() == {"answer": structured, "web_sources": []}
+    assert mock_trainer.get_response.call_args.kwargs["schema"] == schema

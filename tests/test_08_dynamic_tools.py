@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch, MagicMock
 from langchain_core.tools import BaseTool
 
@@ -6,9 +5,6 @@ from longtrainer.tools import (
     load_dynamic_tools,
     get_wikipedia_tool,
     get_arxiv_tool,
-    get_python_repl_tool,
-    get_yahoo_finance_tool,
-    get_tavily_search_tool,
 )
 
 def test_load_dynamic_tools_success():

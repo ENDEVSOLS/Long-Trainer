@@ -2,7 +2,7 @@
   <img src="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/assets/longtrainer.png?raw=true" alt="LongTrainer Logo">
 </p>
 
-<h1 align="center">LongTrainer 1.3.1 — Production-Ready RAG Framework</h1>
+<h1 align="center">LongTrainer 1.4.0 — Production-Ready RAG Framework</h1>
 
 <p align="center">
   <strong>Multi-tenant bots, streaming, tools, and persistent memory — all batteries included.</strong>
@@ -21,9 +21,11 @@
 </p>
 <hr />
 
-# Welcome to LongTrainer 1.3.1
+# Welcome to LongTrainer 1.4.0
 
 LongTrainer is a **production-ready RAG framework** that turns your documents into intelligent, multi-tenant chatbots with minimal code. Built on top of LangChain, it handles multi-bot isolation, persistent MongoDB memory, FAISS vector search, streaming responses, custom tool calling, chat encryption, and vision support.
+
+> Version metadata is aligned to 1.4.0. Publication and final release checks are pending; install this checkout for the new features.
 
 ## Quick Start
 
@@ -71,12 +73,14 @@ chat_id = trainer.new_chat(bot_id)
 answer, _ = trainer.get_response("What is 42 * 17?", bot_id, chat_id)
 ```
 
+### Named Agent Types
+
+In the 1.4.0 release-preparation checkout, select a purpose such as `research`, `coding`, `financial`, or `customer_support`. Install its optional dependencies and configure required services before using `longtrainer build --agent-type research`. See [Named Agent Types](agent_types.md) for tools, prompts, overrides and API/CLI examples. SQL is deferred.
+
 ### Zero-Code CLI & API Server
 Manage bots, chat, and run a production API directly from your terminal—no Python required.
 
 #### A. Interactive Terminal Chat
-
-![CLI Quick Start](assets/01-cli-quickstart.gif)
 
 ```bash
 # 1. Initialize a new project and generate longtrainer.yaml
@@ -94,15 +98,11 @@ longtrainer chat <bot_id>
 
 #### B. Interactive Streaming Chat
 
-![Interactive Chat](assets/02-interactive-chat.gif)
-
 ```bash
 longtrainer chat <bot_id>
 ```
 
 #### C. FastAPI REST Server
-
-![API Server](assets/03-api-server.gif)
 
 Start a production-ready API server backed by your LongTrainer bots:
 ```bash

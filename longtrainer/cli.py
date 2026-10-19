@@ -140,9 +140,9 @@ def init(
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
     click.secho(f"\n✅ Config written to {output}", fg="green", bold=True)
-    click.echo(f"\nNext steps:")
+    click.echo("\nNext steps:")
     click.echo(f"  1. Review and edit {output}")
-    click.echo(f"  2. Run: longtrainer serve\n")
+    click.echo("  2. Run: longtrainer serve\n")
 
 
 # ─── serve ────────────────────────────────────────────────────────────────────
@@ -240,32 +240,93 @@ def bot_list(config: str) -> None:
     click.echo()
 
 
+def _validate_agent_type(agent_type: str | None) -> None:
+    """Validate a purpose before connecting to services or allocating a bot."""
+    if agent_type is not None:
+        from longtrainer.agent_types import AgentTypeRegistry
+        try:
+            AgentTypeRegistry.get(agent_type)
+        except ValueError as error:
+            raise click.BadParameter(str(error), param_hint="--agent-type") from error
+
+
+def _parse_tools(tools: str | None) -> list[str] | None:
+    """Distinguish an omitted tool option from an explicit empty replacement."""
+    return None if tools is None else [name.strip() for name in tools.split(",") if name.strip()]
+
+
+@cli.command("build")
+@click.argument("bot_id", required=False)
+@click.option("--config", "-c", default="longtrainer.yaml", help="Path to infrastructure config file.")
+@click.option("--agent-type", default=None, help="Purpose: research, coding, financial, customer_support.")
+@click.option("--prompt", "-p", default=None, help="Custom system prompt.")
+@click.option("--agent", is_flag=True, help="Enable legacy agent mode when no purpose is selected.")
+@click.option("--tools", "-t", default=None, help="Comma-separated tools; pass an empty string for no tools.")
+def build(bot_id: str | None, config: str, agent_type: str | None,
+          prompt: str | None, agent: bool, tools: str | None) -> None:
+    """Build an existing BOT_ID, or initialize and build a new bot if omitted."""
+    _validate_agent_type(agent_type)
+    trainer = _get_trainer(config)
+    try:
+        if bot_id:
+            trainer.load_bot(bot_id)
+            if bot_id not in trainer.bot_data:
+                raise ValueError(f"Failed to load bot {bot_id}")
+            if agent_type is None and not agent and tools is None:
+                trainer._rebuild_bot(bot_id, prompt_template=prompt)
+                click.echo(f"Bot built: {bot_id}")
+                return
+            if agent_type is None and not agent:
+                current = trainer.bot_data[bot_id]
+                agent_type = current.get("agent_type")
+                if agent_type and prompt is None:
+                    prompt = current.get("prompt_template")
+        else:
+            bot_id = trainer.initialize_bot_id()
+            if not bot_id:
+                raise ValueError("Failed to initialize bot")
+        trainer.create_bot(
+            bot_id=bot_id, prompt_template=prompt, agent_mode=agent, tools=_parse_tools(tools),
+            **({"agent_type": agent_type} if agent_type is not None else {}),
+        )
+        click.echo(f"Bot built: {bot_id}")
+    except Exception as error:
+        raise click.ClickException(str(error)) from error
+
+
 @bot.command("create")
 @click.option("--config", "-c", default="longtrainer.yaml", help="Path to config file.")
 @click.option("--prompt", "-p", default=None, help="Custom system prompt.")
 @click.option("--agent", is_flag=True, default=False, help="Enable Agent mode with tool calling.")
 @click.option("--tools", "-t", default=None, help="Comma-separated list of tools (e.g. 'wikipedia,arxiv').")
-def bot_create(config: str, prompt: str | None, agent: bool, tools: str | None) -> None:
+@click.option("--agent-type", default=None, help="Purpose: research, coding, financial, customer_support.")
+def bot_create(config: str, prompt: str | None, agent: bool, tools: str | None, agent_type: str | None) -> None:
     """Initialize a new empty bot."""
+    _validate_agent_type(agent_type)
     trainer = _get_trainer(config)
     bot_id = trainer.initialize_bot_id()
     if not bot_id:
         click.secho("❌ Failed to create bot.", fg="red")
         raise SystemExit(1)
 
-    tool_list = [t.strip() for t in tools.split(",")] if tools else []
-
-    trainer.create_bot(
-        bot_id=bot_id,
-        prompt_template=prompt,
-        agent_mode=agent,
-        tools=tool_list if tool_list else None
-    )
-    click.secho(f"\n✅ Bot created successfully!", fg="green", bold=True)
+    tool_list = _parse_tools(tools)
+    try:
+        trainer.create_bot(
+            bot_id=bot_id, prompt_template=prompt, agent_mode=agent,
+            tools=tool_list if agent_type is not None else (tool_list or None),
+            **({"agent_type": agent_type} if agent_type is not None else {}),
+        )
+    except Exception as error:
+        raise click.ClickException(str(error)) from error
+    click.secho("\n✅ Bot created successfully!", fg="green", bold=True)
     click.echo(f"   Bot ID    : {bot_id}")
-    click.echo(f"   Agent Mode: {'Yes' if agent else 'No (RAG)'}")
-    click.echo(f"   Tools     : {', '.join(tool_list) if tool_list else 'none'}")
-    click.echo(f"\nNext steps:")
+    if agent_type:
+        click.echo(f"   Agent Type: {agent_type}")
+    else:
+        click.echo(f"   Agent Mode: {'Yes' if agent else 'No (RAG)'}")
+    tool_summary = "purpose defaults" if agent_type and tool_list is None else (", ".join(tool_list or []) or "none")
+    click.echo(f"   Tools     : {tool_summary}")
+    click.echo("\nNext steps:")
     click.echo(f"  longtrainer add-doc {bot_id} <file.pdf>")
     click.echo(f"  longtrainer chat {bot_id}\n")
 
@@ -318,7 +379,7 @@ def add_doc(bot_id: str, path: str, config: str) -> None:
                     raise SystemExit(1)
                 trainer.add_document_from_path(path, bot_id)
 
-            trainer.create_bot(bot_id)
+            trainer._rebuild_bot(bot_id)
             click.secho(f"✅ Document added: {path}", fg="green")
             click.echo(f"   Bot: {bot_id}")
             click.echo(f"\nChat with your bot: longtrainer chat {bot_id}\n")
@@ -360,10 +421,10 @@ def chat_command(bot_id: str, config: str) -> None:
 
     chat_id = trainer.new_chat(bot_id)
 
-    click.secho(f"\n💬 LongTrainer Chat", fg="cyan", bold=True)
+    click.secho("\n💬 LongTrainer Chat", fg="cyan", bold=True)
     click.echo(f"   Bot    : {bot_id}")
     click.echo(f"   Chat ID: {chat_id}")
-    click.echo(f"\nType 'exit' or 'quit' to end the session.\n")
+    click.echo("\nType 'exit' or 'quit' to end the session.\n")
 
     while True:
         try:
@@ -376,7 +437,7 @@ def chat_command(bot_id: str, config: str) -> None:
                 try:
                     result = trainer.get_response(query, bot_id, chat_id)
                     response = result[0] if isinstance(result, tuple) else str(result)
-                    click.secho(f"\nLongTrainer> ", fg="blue", bold=True, nl=False)
+                    click.secho("\nLongTrainer> ", fg="blue", bold=True, nl=False)
                     click.echo(response)
                     click.echo()
                     break

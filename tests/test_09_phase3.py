@@ -4,7 +4,7 @@ P3-3 Config Lock Guard, and P3-6 Vision Normalizer."""
 import json
 
 import pytest
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import MagicMock
 
 from longtrainer.structured import (
     StructuredResponse,

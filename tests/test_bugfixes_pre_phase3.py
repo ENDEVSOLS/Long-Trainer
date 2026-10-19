@@ -10,9 +10,8 @@ Fixes verified:
 from __future__ import annotations
 
 import asyncio
-import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -167,7 +166,6 @@ class TestAsyncDocumentIngestion:
         """A failure on one file must not abort the rest."""
         doc_manager, loader, storage = _make_doc_manager()
         call_record: list[str] = []
-        failures: list[str] = []
 
         async def fake_async_add(path, bot_id, use_unstructured=False):
             if path == "bad.pdf":

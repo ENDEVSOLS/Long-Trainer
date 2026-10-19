@@ -11,18 +11,22 @@ Validates that:
 8. All other functionalities (list_chats, delete, etc.) are unbroken
 
 Requires a running MongoDB instance and real dependencies (no mocks).
+Run with pytest --run-integration or as a standalone script.
 """
 
+import os
 import sys
 import time
 import gc
+
+import pytest
 
 # Allow running standalone
 if __name__ == "__main__":
     sys.path.insert(0, ".")
 
 
-def test_lazy_loading():
+def _run_lazy_loading_checks():
     """Real integration test for lazy chat loading."""
     print("=" * 70)
     print("TEST 10: Lazy Loading — Real Integration Test")
@@ -32,15 +36,13 @@ def test_lazy_loading():
 
     # ─── Setup: Create a real LongTrainer with local MongoDB ─────────────────
     try:
-        import os
-        os.environ["OPENAI_API_KEY"] = "sk-mock-key-for-testing"
         from langchain_core.embeddings import FakeEmbeddings
         from longtrainer.trainer import LongTrainer
-        from longtrainer.bot import RAGBot, AgentBot
+        from longtrainer.bot import RAGBot
         from longtrainer.vision_bot import VisionMemory
 
         trainer = LongTrainer(
-            mongo_endpoint="mongodb://localhost:27017/",
+            mongo_endpoint=os.environ.get("LONGTRAINER_TEST_MONGO_URI", "mongodb://localhost:27017/"),
             vector_store_provider="qdrant",
             vector_store_kwargs={"location": ":memory:"},
             embedding_model=FakeEmbeddings(size=1536),
@@ -97,8 +99,8 @@ def test_lazy_loading():
 
     # ─── Test 4: Manually store some chat history in MongoDB ─────────────────
     # Simulate what happens when a real user sends messages
-    test_chat_id = "chat-lazy-test-001"
-    test_vision_chat_id = "vision-lazy-test-001"
+    test_chat_id = f"chat-lazy-{bot_id}"
+    test_vision_chat_id = f"vision-lazy-{bot_id}"
     try:
         # Store 3 chat messages directly into MongoDB
         for i in range(3):
@@ -125,7 +127,7 @@ def test_lazy_loading():
         assert chat_data and len(chat_data) == 3, f"Expected 3 chat records, got {len(chat_data) if chat_data else 0}"
         assert vision_data and len(vision_data) == 2, f"Expected 2 vision records, got {len(vision_data) if vision_data else 0}"
 
-        results.append(("Store test history in MongoDB", True, f"3 chats + 2 vision chats stored"))
+        results.append(("Store test history in MongoDB", True, "3 chats + 2 vision chats stored"))
     except Exception as e:
         results.append(("Store test history in MongoDB", False, str(e)))
 
@@ -232,8 +234,8 @@ def test_lazy_loading():
         chats = trainer.list_chats(bot_id)
         assert "chat_ids" in chats, "list_chats should return chat_ids"
         assert "vision_chat_ids" in chats, "list_chats should return vision_chat_ids"
-        assert test_chat_id in chats["chat_ids"], f"test_chat_id should be in chat_ids"
-        assert test_vision_chat_id in chats["vision_chat_ids"], f"test_vision_chat_id should be in vision_chat_ids"
+        assert test_chat_id in chats["chat_ids"], "test_chat_id should be in chat_ids"
+        assert test_vision_chat_id in chats["vision_chat_ids"], "test_vision_chat_id should be in vision_chat_ids"
 
         results.append(("list_chats — MongoDB query", True, f"{len(chats['chat_ids'])} chats, {len(chats['vision_chat_ids'])} vision"))
     except Exception as e:
@@ -318,6 +320,15 @@ def _print_results(results):
     print("=" * 70)
 
 
+@pytest.mark.integration
+def test_lazy_loading(monkeypatch, tmp_path):
+    """Report service setup and aggregate check failures as real pytest failures."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-mock-key-for-testing")
+    monkeypatch.chdir(tmp_path)
+    assert _run_lazy_loading_checks(), "Lazy-loading integration checks failed; see results above."
+
+
 if __name__ == "__main__":
-    success = test_lazy_loading()
+    os.environ["OPENAI_API_KEY"] = "sk-mock-key-for-testing"
+    success = _run_lazy_loading_checks()
     sys.exit(0 if success else 1)

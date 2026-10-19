@@ -138,3 +138,7 @@ Below is a quick reference of the available endpoints. All API requests process 
   ```
 * `PUT /bots/{bot_id}/prompt` — Update the system prompt for a bot.
 * `POST /bots/{bot_id}/train-chats` — Trigger self-improvement (train the bot on its past Q&A).
+
+## Named purposes
+
+Use `longtrainer build --agent-type research` to create and build a new bot, or `longtrainer build BOT_ID --agent-type research` for an existing bot. `longtrainer bot create --agent-type customer_support` also supports purpose selection. The HTTP build route accepts optional `agent_type`; unknown names return HTTP 400 with supported names. See [Named Agent Types](agent_types.md) for installation, overrides and YAML exclusions.

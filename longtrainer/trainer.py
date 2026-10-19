@@ -33,6 +33,7 @@ from longtrainer.loaders import DocumentLoader, TextSplitter
 from longtrainer.retrieval import DocumentRetriever, MultiQueryEnsembleRetriever
 from longtrainer.vectorstores import get_vectorstore, save_vectorstore, delete_vectorstore
 from longtrainer.storage import MongoStorage
+from longtrainer.agent_types import AgentTypeRegistry, resolve_tools
 from longtrainer.tools import ToolRegistry, get_builtin_tools
 from longtrainer.utils import deserialize_document, serialize_document
 from longtrainer.vision_bot import VisionBot, VisionMemory
@@ -221,6 +222,7 @@ class LongTrainer:
         llm: Optional[BaseChatModel] = None,
         embedding_model: Optional[Embeddings] = None,
         num_k: Optional[int] = None,
+        agent_type: Optional[str] = None,
     ) -> None:
         """Create and initialize a bot from loaded documents.
 
@@ -232,7 +234,20 @@ class LongTrainer:
             llm: Custom LLM for this bot (uses global default if None).
             embedding_model: Custom embeddings for this bot.
             num_k: Custom number of retrieved documents.
+            agent_type: Named purpose; determines mode and default prompt/tools.
         """
+        selected = AgentTypeRegistry.get(agent_type) if agent_type is not None else None
+        resolved = None
+        specs = tools
+        if selected:
+            if selected.mode == "agent":
+                self._require_agent_runtime()
+            if bot_id not in self.bot_data:
+                raise ValueError(f"Bot ID {bot_id} not found. Call initialize_bot_id() first.")
+            specs = list(selected.default_tools) if tools is None else list(tools)
+            resolved = resolve_tools(specs)
+            agent_mode = selected.mode == "agent"
+            prompt_template = selected.system_prompt if prompt_template is None else prompt_template
         try:
             if bot_id not in self.bot_data:
                 raise ValueError(f"Bot ID {bot_id} not found. Call initialize_bot_id() first.")
@@ -243,12 +258,25 @@ class LongTrainer:
             bot_embedding = embedding_model or self.embedding_model
             bot_k = num_k or self.k
 
-            pt = prompt_template or self.prompt_template
+            pt = prompt_template if selected else (prompt_template or self.prompt_template)
             bot["prompt_template"] = pt
             bot["prompt"] = build_chat_prompt(pt)
             bot["agent_mode"] = agent_mode
 
-            if tools:
+            dynamic_tool_names = []
+            if selected:
+                bot["tools"] = ToolRegistry()
+                for tool in resolved:
+                    if not bot["tools"].has_tool(tool.name):
+                        bot["tools"].register(tool)
+                dynamic_tool_names = [spec for spec in specs if isinstance(spec, str)]
+                bot["agent_type"] = agent_type
+                bot["type_tools_override"] = tools is not None
+                bot["type_tool_specs"] = list(specs)
+                bot["chains"] = {}
+            else:
+                bot.pop("agent_type", None)
+            if tools and not selected:
                 from longtrainer.tools import load_dynamic_tools
                 dynamic_tool_names = [t for t in tools if isinstance(t, str)]
                 if dynamic_tool_names:
@@ -287,17 +315,24 @@ class LongTrainer:
             else:
                 bot["ensemble_retriever"] = base_retriever
 
+            if bot.get("agent_type") == "customer_support":
+                from longtrainer.agent_types.grounding import SupportRetriever
+                bot["ensemble_retriever"] = SupportRetriever(retriever=bot["ensemble_retriever"])
             bot["retriever"] = bot["ensemble_retriever"]
 
             self._storage.update_bot(bot_id, {
                 "prompt_template": pt,
                 "agent_mode": agent_mode,
-                "dynamic_tools": dynamic_tool_names if tools else [],
+                "dynamic_tools": dynamic_tool_names,
+                "agent_type": agent_type,
+                "type_tools_override": tools is not None if selected else False,
             })
 
             del documents, all_splits
             gc.collect()
         except Exception as e:
+            if selected:
+                raise
             print(f"[ERROR] Error creating bot: {e}")
 
     def load_bot(self, bot_id: str) -> None:
@@ -316,6 +351,7 @@ class LongTrainer:
         if not bot_id:
             raise ValueError("Bot ID must be provided.")
 
+        bot_config = None
         try:
             bot_config = self._storage.find_bot(bot_id)
 
@@ -343,9 +379,23 @@ class LongTrainer:
 
             bot = self.bot_data[bot_id]
             
-            # Restore dynamic tools
+            selected_name = bot_config.get("agent_type")
+            if selected_name:
+                selected = AgentTypeRegistry.get(selected_name)
+                if selected.mode == "agent":
+                    self._require_agent_runtime()
+                bot["agent_type"] = selected_name
+                bot["agent_mode"] = selected.mode == "agent"
+                bot["prompt_template"] = bot_config.get("prompt_template", selected.system_prompt)
+                bot["type_tools_override"] = bot_config.get("type_tools_override", False)
+                bot["type_tool_specs"] = bot_config.get("dynamic_tools", list(selected.default_tools))
+                for tool in resolve_tools(bot["type_tool_specs"]):
+                    if not bot["tools"].has_tool(tool.name):
+                        bot["tools"].register(tool)
+
+            # Restore legacy dynamic tools
             dynamic_tools_list = bot_config.get("dynamic_tools", [])
-            if dynamic_tools_list:
+            if dynamic_tools_list and not selected_name:
                 from longtrainer.tools import load_dynamic_tools
                 dynamic_tools = load_dynamic_tools(dynamic_tools_list)
                 for t in dynamic_tools:
@@ -373,6 +423,9 @@ class LongTrainer:
             else:
                 bot["ensemble_retriever"] = base_retriever
 
+            if bot.get("agent_type") == "customer_support":
+                from longtrainer.agent_types.grounding import SupportRetriever
+                bot["ensemble_retriever"] = SupportRetriever(retriever=bot["ensemble_retriever"])
             bot["retriever"] = bot["ensemble_retriever"]
 
             # Chat histories are lazy-loaded on demand — no eager loading.
@@ -382,6 +435,8 @@ class LongTrainer:
             gc.collect()
             print(f"[INFO] Bot {bot_id} loaded successfully (chats will be lazy-loaded on demand).")
         except Exception as e:
+            if bot_config and bot_config.get("agent_type"):
+                raise
             print(f"[ERROR] Error loading bot: {e}")
 
     def delete_chatbot(self, bot_id: str) -> None:
@@ -587,6 +642,8 @@ class LongTrainer:
 
     def list_tools(self, bot_id: Optional[str] = None) -> list[str]:
         """List tool names for a bot (including global tools)."""
+        if bot_id and self.bot_data.get(bot_id, {}).get("agent_type"):
+            return self.bot_data[bot_id]["tools"].list_tool_names()
         global_names = self._global_tools.list_tool_names()
         if bot_id and bot_id in self.bot_data:
             bot_names = self.bot_data[bot_id]["tools"].list_tool_names()
@@ -595,6 +652,8 @@ class LongTrainer:
 
     def _get_bot_tools(self, bot_id: str) -> list[BaseTool]:
         """Get combined global + bot-specific tools."""
+        if self.bot_data.get(bot_id, {}).get("agent_type"):
+            return self.bot_data[bot_id]["tools"].get_tools()
         tools = self._global_tools.get_tools()
         if bot_id in self.bot_data:
             tools.extend(self.bot_data[bot_id]["tools"].get_tools())
@@ -629,8 +688,7 @@ class LongTrainer:
 
         # Create the appropriate bot instance
         if bot.get("agent_mode"):
-            tools = self._global_tools.get_tools()
-            tools.extend(bot["tools"].get_tools())
+            tools = self._get_bot_tools(bot_id)
             bot_instance = AgentBot(
                 llm=self.llm,
                 tools=tools,
@@ -706,7 +764,8 @@ class LongTrainer:
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
         return self._chat_manager.new_chat(
-            self.bot_data[bot_id], bot_id, self.prompt_template, self._global_tools
+            self.bot_data[bot_id], bot_id, self.prompt_template,
+            ToolRegistry() if self.bot_data[bot_id].get("agent_type") else self._global_tools
         )
 
     def new_vision_chat(self, bot_id: str) -> str:
@@ -732,6 +791,8 @@ class LongTrainer:
         """Get a response from the chatbot."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self.bot_data[bot_id].get("agent_type") == "customer_support" and (web_search or uploaded_files):
+            raise ValueError("Customer support uses knowledge-base documents only; web search and uploads are disabled.")
         # Lazy-load chat history from MongoDB if not already in memory
         self._ensure_chat_loaded(bot_id, chat_id)
         return self._chat_manager.get_response(
@@ -750,6 +811,8 @@ class LongTrainer:
         """Async streaming response."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self.bot_data[bot_id].get("agent_type") == "customer_support" and (web_search or uploaded_files):
+            raise ValueError("Customer support uses knowledge-base documents only; web search and uploads are disabled.")
         # Lazy-load chat history from MongoDB if not already in memory
         self._ensure_chat_loaded(bot_id, chat_id)
         async for chunk in self._chat_manager.aget_response(
@@ -770,6 +833,8 @@ class LongTrainer:
         """Get a response from the vision AI assistant."""
         if bot_id not in self.bot_data:
             raise ValueError(f"Bot ID {bot_id} not found.")
+        if self.bot_data[bot_id].get("agent_type") == "customer_support":
+            raise ValueError("Customer support uses knowledge-base text chats; vision augmentation is disabled.")
         # Lazy-load vision chat history from MongoDB if not already in memory
         self._ensure_vision_chat_loaded(bot_id, vision_chat_id)
         return self._chat_manager.get_vision_response(
@@ -778,6 +843,27 @@ class LongTrainer:
         )
 
     # ─── Update Bot ───────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _require_agent_runtime() -> None:
+        """Fail at configuration time when the optional agent runtime is absent."""
+        try:
+            from importlib import import_module
+            import_module("langgraph.prebuilt")
+        except ImportError as error:
+            raise ValueError("Named agent mode requires LangGraph; install the purpose extra or longtrainer[agent].") from error
+
+    def _rebuild_bot(self, bot_id: str, prompt_template: Optional[str] = None) -> None:
+        """Rebuild internal indexes while preserving named purpose configuration."""
+        bot = self.bot_data.get(bot_id, {})
+        if bot.get("agent_type"):
+            self.create_bot(
+                bot_id, agent_type=bot["agent_type"],
+                prompt_template=bot["prompt_template"] if prompt_template is None else prompt_template,
+                tools=bot["type_tool_specs"] if bot.get("type_tools_override") else None,
+            )
+        else:
+            self.create_bot(bot_id, prompt_template=prompt_template)
 
     def update_chatbot(
         self,
@@ -806,7 +892,7 @@ class LongTrainer:
 
             # Rebuild using the current vectorstore API (B6: remove legacy faiss_index)
             # B7: forward prompt_template so it is persisted to MongoDB
-            self.create_bot(bot_id, prompt_template=prompt_template)
+            self._rebuild_bot(bot_id, prompt_template=prompt_template)
 
             gc.collect()
         except Exception as e:
@@ -913,7 +999,7 @@ class LongTrainer:
             self._storage.mark_chats_trained(chat_ids)
 
             self._doc_manager.add_document_from_path(path=csv_path, bot_id=bot_id)
-            self.create_bot(bot_id=bot_id)
+            self._rebuild_bot(bot_id)
 
             return {"message": "Trainer updated with new chat history.", "csv_path": csv_path}
         except Exception as e:

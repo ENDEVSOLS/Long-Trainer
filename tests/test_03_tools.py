@@ -12,7 +12,7 @@ def test_tool_registry():
     print("TEST 3: Tool Registry & Built-in Tools")
     print("=" * 60)
 
-    from langchain_core.tools import tool, BaseTool
+    from langchain_core.tools import tool
     from longtrainer.tools import ToolRegistry, web_search, document_reader, get_builtin_tools
 
     results = []
@@ -115,9 +115,9 @@ def test_tool_registry():
     print()
     print(f"Results: {passed} passed, {failed} failed")
     print("=" * 60)
-    return failed == 0
+    assert failed == 0, f"{failed} tool checks failed; see results above."
 
 
 if __name__ == "__main__":
-    success = test_tool_registry()
-    sys.exit(0 if success else 1)
+    test_tool_registry()
+    sys.exit(0)

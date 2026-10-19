@@ -94,9 +94,9 @@ def test_imports():
     print()
     print(f"Results: {passed} passed, {failed} failed")
     print("=" * 60)
-    return failed == 0
+    assert failed == 0, f"{failed} import checks failed; see results above."
 
 
 if __name__ == "__main__":
-    success = test_imports()
-    sys.exit(0 if success else 1)
+    test_imports()
+    sys.exit(0)

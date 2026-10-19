@@ -1,3 +1,4 @@
+# Infrastructure settings only. Select a purpose with --agent-type; per-bot YAML purpose settings are not supported.
 mongo_endpoint: mongodb://localhost:27017/
 llm:
   provider: openai

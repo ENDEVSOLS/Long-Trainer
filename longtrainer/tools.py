@@ -167,6 +167,12 @@ def load_dynamic_tools(tool_names: List[str], **kwargs) -> List[BaseTool]:
         A list of initialized BaseTool objects.
     """
     try:
+        if "wikipedia" in tool_names:
+            import wikipedia
+
+            wikipedia.set_user_agent(
+                "LongTrainer/1.4.0 (https://github.com/ENDEVSOLS/Long-Trainer)"
+            )
         return load_tools(tool_names, **kwargs)
     except Exception as e:
         print(f"[ERROR] Error loading dynamic tools {tool_names}: {e}")
@@ -192,10 +198,40 @@ def get_python_repl_tool() -> BaseTool:
         return None
 
 def get_yahoo_finance_tool() -> BaseTool:
-    """Get the Yahoo Finance News tool."""
+    """Get Yahoo news, falling back to headlines when ticker article lookup is empty."""
     try:
+        from datetime import datetime, timezone
+
         from langchain_community.tools.yahoo_finance_news import YahooFinanceNewsTool
-        return YahooFinanceNewsTool()
+
+        class YahooNewsWithSearchFallback(YahooFinanceNewsTool):
+            def _run(self, query: str, run_manager=None) -> str:
+                response = super()._run(query, run_manager=run_manager)
+                if not response.startswith("No news found"):
+                    return response
+
+                import yfinance
+
+                articles = yfinance.Search(query, news_count=5, timeout=10).news
+                headlines = []
+                for article in articles:
+                    if not article.get("title") or not article.get("link"):
+                        continue
+                    timestamp = article.get("providerPublishTime")
+                    published = (
+                        datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+                        if isinstance(timestamp, (int, float)) else "Unknown"
+                    )
+                    headlines.append(
+                        f"Title: {article['title']}\n"
+                        f"Publisher: {article.get('publisher', 'Unknown')}\n"
+                        f"Published: {published}\nLink: {article['link']}"
+                    )
+                if not headlines:
+                    return response
+                return "Yahoo Finance news headlines (full article text unavailable):\n\n" + "\n\n".join(headlines)
+
+        return YahooNewsWithSearchFallback()
     except ImportError:
         print("[ERROR] Please install yfinance to use the Yahoo Finance Tool: pip install yfinance")
         return None

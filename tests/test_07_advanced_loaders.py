@@ -1,5 +1,3 @@
-import os
-import shutil
 import pytest
 from unittest.mock import patch, MagicMock
 from langchain_core.documents import Document

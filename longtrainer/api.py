@@ -191,6 +191,7 @@ class CreateBotRequest(BaseModel):
     prompt_template: Optional[str] = None
     agent_mode: bool = False
     tools: Optional[list[str]] = None
+    agent_type: Optional[str] = None
 
 
 class DocumentPathRequest(BaseModel):
@@ -261,6 +262,12 @@ async def create_bot_id():
 @app.post("/bots/{bot_id}/build")
 async def build_bot(bot_id: str, req: CreateBotRequest):
     """Build a bot from its loaded documents."""
+    if req.agent_type is not None:
+        from longtrainer.agent_types import AgentTypeRegistry
+        try:
+            AgentTypeRegistry.get(req.agent_type)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error))
     trainer = _get_trainer()
     _ensure_bot_loaded(trainer, bot_id)
     try:
@@ -269,6 +276,7 @@ async def build_bot(bot_id: str, req: CreateBotRequest):
             prompt_template=req.prompt_template,
             agent_mode=req.agent_mode,
             tools=req.tools,
+            **({"agent_type": req.agent_type} if req.agent_type is not None else {}),
         )
         return {"status": "ok", "bot_id": bot_id}
     except Exception as e:

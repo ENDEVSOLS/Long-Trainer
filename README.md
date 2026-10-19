@@ -2,7 +2,7 @@
   <img src="https://github.com/mohsin1218/Long-Trainer/blob/master/assets/longtrainer.png?raw=true" alt="LongTrainer Logo" width="320">
 </p>
 
-<h1 align="center">LongTrainer 1.3.1 — Production-Ready RAG Framework</h1>
+<h1 align="center">LongTrainer 1.4.0 — Production-Ready RAG Framework</h1>
 
 <p align="center">
   <strong>Multi-tenant bots, streaming, tools, and persistent memory — all batteries included.</strong>
@@ -46,6 +46,8 @@
 > 
 ---
 
+> **Development status:** The `1.4.0` agent-type features are implemented in this checkout and locally verified. Package version metadata is aligned to `1.4.0`; this release has not been published. Use the source-install instructions below for the new interfaces.
+
 ## What is LongTrainer?
 
 LongTrainer is a **production-ready RAG framework** that turns your documents into intelligent, multi-tenant chatbots — with **5 lines of code**.
@@ -74,7 +76,7 @@ Built on top of LangChain, LongTrainer handles the hard parts that every product
 pip install longtrainer
 ```
 
-**With agent/tool-calling support (optional):**
+**With legacy agent/tool-calling support (optional):**
 
 ```bash
 pip install longtrainer[agent]
@@ -85,6 +87,17 @@ pip install longtrainer[agent]
 ```bash
 pip install longtrainer[tracer]
 ```
+
+### Source installation for 1.4.0 release preparation
+
+From the `Long-Trainer/` checkout, install the extra for the purpose you need:
+
+```bash
+pip install -e '.[research,api,cli]'
+# Alternatives: '.[coding]', '.[financial]', or '.' for customer support/RAG.
+```
+
+Research and coding require `TAVILY_API_KEY`. All agent purposes require a tool-calling model; configure its credentials and a running MongoDB instance before creating bots. Default OpenAI models also require `OPENAI_API_KEY`. The `[agent]` extra installs LangGraph, but does not install every purpose's tools.
 
 ### System Dependencies
 
@@ -136,12 +149,14 @@ longtrainer chat <bot_id>
 
 #### FastAPI REST Server
 
-Start a production-ready API server backed by your LongTrainer bots:
+Install `longtrainer[api,cli]` (or `pip install -e '.[api,cli]'` from this checkout), then start the API server:
+
 ```bash
 longtrainer serve
 ```
 
-This starts a FastAPI server on `http://localhost:8000` with **18 REST endpoints**, including:
+This starts a FastAPI server on `http://localhost:8000` with endpoints including:
+
 - `/health`
 - `/bots` (CRUD)
 - `/bots/{id}/documents/path` (Ingest files)
@@ -181,6 +196,22 @@ for chunk in trainer.get_response("Summarize the key points", bot_id, chat_id, s
     print(chunk, end="", flush=True)
 ```
 
+### Structured JSON Responses
+
+For RAG bots, pass a JSON Schema to validate the complete response:
+
+```python
+schema = {
+    "type": "object",
+    "properties": {"answer": {"type": "string"}},
+    "required": ["answer"],
+}
+result, sources = trainer.get_response("Summarize the document", bot_id, chat_id, schema=schema)
+print(result["status"], result["data"])
+```
+
+The dictionary contains `status`, `data`, `raw_llm_output`, and `error`. Invalid JSON/schema output is retried once; final validation failure returns `partial_success` with the last raw output. Structured responses require a complete response, so do not combine them with streaming.
+
 ### Async Streaming
 
 ```python
@@ -188,27 +219,85 @@ async for chunk in trainer.aget_response("Explain the methodology", bot_id, chat
     print(chunk, end="", flush=True)
 ```
 
-### AgentBot automatically routes questions to tools like web search when necessary.
+### 3. Named Agent Types — 1.4.0
 
-### 🌟 NEW: Dynamic ZERO CODE Tools
-LongTrainer V2 now integrates LangChain's massive dynamic tool ecosystem **natively**:
+Choose a purpose to select its default prompt, tools and execution mode:
+
 ```python
-trainer.create_bot(
-    "agent-id", 
-    agent_mode=True, 
-    tools=["tavily_search_results_json", "wikipedia", "arxiv", "PythonREPLTool", "yahoo_finance_news"]
-)
+from longtrainer import LongTrainer, AgentTypeRegistry
+
+trainer = LongTrainer(mongo_endpoint="mongodb://localhost:27017/")
+bot_id = trainer.initialize_bot_id()
+trainer.create_bot(bot_id, agent_type="research")
+chat_id = trainer.new_chat(bot_id)
+answer, sources = trainer.get_response("Compare the available research on this topic", bot_id, chat_id)
+print(answer)
+print(AgentTypeRegistry.names())
 ```
 
-LongTrainer will dynamically import and initialize ANY string-based tool from `langchain.agents.load_tools` natively on the backend!
+| Type | Runtime | Default capabilities | Source installation |
+|---|---|---|---|
+| `research` | Agent | Tavily search, Wikipedia, arXiv; cross-checking and citations | `pip install -e '.[research]'` |
+| `coding` | Agent | Python REPL and Tavily search; ordered work, testing and error recovery | `pip install -e '.[coding]'` |
+| `financial` | Agent | Yahoo Finance News and Python REPL; sourced figures, timestamps and a disclaimer | `pip install -e '.[financial]'` |
+| `customer_support` | RAG | Knowledge-base retrieval, source identifiers and escalation when unsupported | `pip install -e .` |
 
-You may still register custom tools globally or per-bot explicitly:
+Financial tools provide news and calculations, not a market-price feed. Coding and financial Python tools execute in the application process with its permissions; the library does not sandbox their execution. Customer support rejects web/upload augmentation and vision responses, and instructs the model to cite supplied documents. Model adherence is not independently verified. SQL is deferred and is not a registered type.
+
+#### Overrides and persistence
+
 ```python
-from langchain.tools import tool
+# A supplied purpose determines mode. An explicit prompt replaces its default.
+trainer.create_bot(bot_id, agent_type="research", tools=["wikipedia"],
+                   prompt_template="Research carefully and cite your sources.")
 
-@tool
-def get_weather(location: str):
+# An explicit empty list disables default tools.
+trainer.create_bot(bot_id, agent_type="coding", tools=[])
 ```
+
+`tools=None` uses purpose defaults; an explicit list replaces them. Named bots exclude implicit global and previous per-bot tools. Missing required tools, dependencies or keys fail visibly. Calls without `agent_type` retain legacy RAG/agent behavior.
+
+The purpose, effective prompt/mode and string tool identifiers survive `load_bot()` and internal ingestion/chat-training rebuilds. Tool objects and credentials are not serialized; re-register custom tool objects after reload. Application-defined registry types must also be registered again before loading their records. A direct `create_bot(bot_id)` keeps legacy creation semantics rather than inferring a stored purpose.
+
+#### CLI
+
+After installing the required extra and configuring infrastructure with `longtrainer init`:
+
+```bash
+# Initialize and build a new research bot; prints its ID.
+longtrainer build --agent-type research
+
+# Build an existing bot or create a new support bot.
+longtrainer build BOT_ID --agent-type coding --tools ""
+longtrainer bot create --agent-type customer_support
+```
+
+A plain `longtrainer build BOT_ID` preserves stored named configuration. `--tools ""` explicitly selects no tools. Existing `bot create`, `--agent`, `--tools`, and `--prompt` options remain available. YAML contains infrastructure settings only; select per-bot purpose, prompt and tools through explicit CLI/API/Python arguments.
+
+#### HTTP API
+
+After initializing an ID with `POST /bots`, use the existing build route:
+
+```bash
+curl -X POST http://localhost:8000/bots/BOT_ID/build \
+  -H 'Content-Type: application/json' \
+  -d '{"agent_type":"research","tools":["wikipedia"]}'
+```
+
+The optional `agent_type` field selects a purpose. Unknown names return HTTP **400** listing supported types. Omit `tools` or use `null` for defaults; use `[]` for no tools. Explicit `prompt_template` overrides the default. Existing payloads and response shapes remain supported.
+
+See the [Named Agent Types guide](docs/docs/agent_types.md) for full configuration and restoration rules.
+
+### Dynamic Tools in Legacy Agent Mode
+
+The legacy path accepts identifiers supported by the existing LangChain community loader:
+
+```python
+# bot_id must have been initialized first; install the tool dependencies.
+trainer.create_bot(bot_id, agent_mode=True, tools=["wikipedia", "arxiv"])
+```
+
+Loader identifiers differ from runtime tool names and class names. The named-purpose path additionally adapts `tavily`, `python_repl`, and `yahoo_finance_news` through the existing factories. Use `add_tool()` for custom tool objects as shown below.
 
 ### Agent Mode — With Custom Tools
 
@@ -221,11 +310,11 @@ trainer.add_tool(web_search, bot_id)
 
 # Add your own custom tool
 @tool
-def calculate(expression: str) -> str:
-    """Evaluate a math expression."""
-    return str(eval(expression))
+def multiply(left: float, right: float) -> float:
+    """Multiply two numbers."""
+    return left * right
 
-trainer.add_tool(calculate, bot_id)
+trainer.add_tool(multiply, bot_id)
 
 # Create bot in agent mode
 trainer.create_bot(bot_id, agent_mode=True)
@@ -270,6 +359,9 @@ trainer.create_bot(
 ## Features ✨
 
 ### Core
+
+- ✅ **Named Purposes (1.4.0 checkout):** Research, coding, financial news and document-grounded customer support
+- ✅ **Structured JSON Responses:** Schema validation with one retry; existing dictionary response contract
 - ✅ **Dual Mode:** RAG (LCEL chain) for simple Q&A, Agent (LangGraph) for tool calling
 - ✅ **Streaming Responses:** Sync and async streaming out of the box
 - ✅ **Custom Tool Calling:** Add any LangChain `@tool` — web search, document reader, or your own
@@ -282,7 +374,7 @@ trainer.create_bot(
 - ✅ **Standard Formats:** PDF, DOCX, CSV, HTML, Markdown, TXT
 - ✅ **Web & Crawling:** `add_document_from_link()`, `add_document_from_query()`, `add_document_from_crawl()`
 - ✅ **Cloud & Enterprise:** S3 (`add_document_from_aws_s3`), Google Drive (`add_document_from_google_drive`), Confluence (`add_document_from_confluence`)
-- ✅ **Structued Data:** Local Directory (`add_document_from_directory`), JSON & JQ (`add_document_from_json`), GitHub Repo (`add_document_from_github`)
+- ✅ **Structured Data:** Local Directory (`add_document_from_directory`), JSON & JQ (`add_document_from_json`), GitHub Repo (`add_document_from_github`)
 - ✅ **Dynamic Integrations:** Inject ANY LangChain document loader class dynamically via `add_document_from_dynamic_loader()`
 
 ### RAG Pipeline & Vector DBs
@@ -341,10 +433,11 @@ trainer = LongTrainer(
 | Method | Description |
 |---|---|
 | `initialize_bot_id()` | Create a new bot, returns `bot_id` |
-| `create_bot(bot_id, ...)` | Build the bot from loaded documents |
+| `create_bot(bot_id, ..., agent_type=None)` | Build a bot with optional purpose selection |
+| `AgentTypeRegistry.names()` | List supported registered purposes |
 | `load_bot(bot_id)` | Restore an existing bot from MongoDB + FAISS |
 | `new_chat(bot_id)` | Start a new chat session, returns `chat_id` |
-| `get_response(query, bot_id, chat_id, stream=False)` | Get response (or stream) |
+| `get_response(query, bot_id, chat_id, stream=False, schema=None)` | Get a response, stream, or schema-validated dictionary |
 | `aget_response(query, bot_id, chat_id)` | Async streaming response |
 | `add_document_from_path(path, bot_id)` | Ingest a file |
 | `add_document_from_link(links, bot_id)` | Ingest URLs / YouTube links |
@@ -354,6 +447,35 @@ trainer = LongTrainer(
 | `train_chats(bot_id)` | Self-improve from chat history |
 | `new_vision_chat(bot_id)` | Start a vision chat session |
 | `get_vision_response(query, images, bot_id, vision_id)` | Vision response |
+
+---
+
+## Development Checks
+
+From the checkout, install test dependencies and the document parser asset:
+
+```bash
+pip install -e '.[agent,dev,cli,api,integration]'
+python -m pip install 'spacy>=3.8,<3.9' 'https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl'
+pytest tests/ -v -ra
+ruff check .
+```
+
+The default suite skips the MongoDB integration test. To include it, point to a dedicated test service:
+
+```bash
+LONGTRAINER_TEST_MONGO_URI='mongodb://localhost:27017/?serverSelectionTimeoutMS=5000' \
+  pytest tests/ -v -ra --run-integration
+```
+
+Build documentation into a temporary directory:
+
+```bash
+pip install mkdocs mkdocs-material
+mkdocs build --strict --config-file docs/mkdocs.yml --site-dir /tmp/longtrainer-docs
+```
+
+Local verification recorded **142 passing tests with MongoDB integration on Python 3.12**; Python 3.10/3.11 each passed **141 offline tests**, with the service test skipped. Fresh base and individual purpose installs, real tool construction and strict docs builds passed. Remote CI, human review and release publication remain pending. These checks use local fake models and do not verify live external search/finance services. See [Phase C verification](docs/phase_c_agent_types.md) and [Phase D verification](docs/phase_d_agent_surfaces.md).
 
 ---
 

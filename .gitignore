@@ -40,3 +40,6 @@ more/
 demo_longtrainer.py
 demos/LONGTRAINER_DEMO.md
 demos/*.tape
+
+# Internal roadmap
+LONGTRAINER_ROADMAP.md
