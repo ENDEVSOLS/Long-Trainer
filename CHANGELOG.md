@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 Version metadata aligned to `1.4.0` on 6 October 2026. Release date, tag and publication remain pending.
 
+### ⚠️ Compatibility
+
+- Raise the minimum Python version to 3.11; Python 3.10 users must upgrade before installing 1.4.0. Align package classifiers, Ruff, installation guidance, and CI with Python 3.11/3.12 support.
+
 ### ✨ New Features
 
 - Add `research`, `coding`, `financial`, and `customer_support` purposes through `create_bot(..., agent_type=...)` and the exported `AgentTypeRegistry`.
@@ -23,9 +27,9 @@ Version metadata aligned to `1.4.0` on 6 October 2026. Release date, tag and pub
 
 ### 🧪 Testing & CI
 
-- Install the parser model explicitly in CI so Python 3.10 does not rely on a transitive spaCy dependency; keep all Python matrix jobs running when one fails.
+- Install the parser model explicitly in CI rather than relying on a transitive spaCy dependency; keep all Python matrix jobs running when one fails.
 
-- Collect the full `tests/` suite on Python 3.10, 3.11, and 3.12, including rate-limiter tests and 17 relocated bug-fix regressions.
+- Collect the full `tests/` suite on Python 3.11 and 3.12, including rate-limiter tests and 17 relocated bug-fix regressions.
 - Make legacy script checks and lazy-loading integration setup failures fail pytest; reject tests returning non-`None` values.
 - Add 16 offline lazy-loading cases, two failure-signaling regressions, and a separate MongoDB/in-memory Qdrant CI job with an `integration` dependency extra.
 - Replace flake8 with bounded Ruff checks and record lint deferrals and verification results in `docs/phase_a_ci_integrity.md`.

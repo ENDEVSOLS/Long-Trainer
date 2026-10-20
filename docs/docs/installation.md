@@ -2,9 +2,11 @@
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.11+ (Python 3.12 recommended for development)
 - MongoDB running locally or remotely
 - An OpenAI API key (or another LangChain-compatible LLM)
+
+LongTrainer 1.4.0 requires Python 3.11 or newer. Python 3.10 users must upgrade their Python environment before installing this version.
 
 ## Install LongTrainer
 

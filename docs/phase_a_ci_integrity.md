@@ -1,5 +1,7 @@
 # Phase A — Test and CI Integrity
 
+> Historical verification record: Python 3.10 results below predate the minimum-version change on 7 October 2026. Current installation requires Python 3.11+, and CI tests Python 3.11/3.12.
+
 **Implemented:** 5 October 2026
 
 **Baseline:** `8368268` (`1.3.1`)

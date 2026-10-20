@@ -1,5 +1,7 @@
 # Phase C implementation and verification
 
+> Historical verification record: Python 3.10 results and reproduction commands below predate the minimum-version change on 7 October 2026. Current installation requires Python 3.11+, and CI tests Python 3.11/3.12.
+
 Phase C1 and C2 add four named purposes on branch `feat/agent-types`. Work started with the uncommitted Phase B changes intact. No commit, push, or remote PR was created.
 
 Before implementation, inspection confirmed that legacy tool lists accumulate per-bot tools, global tools are merged separately for new and lazy chats, and internal document/chat-training rebuilds call legacy `create_bot()` without configuration. The installed community loader supports `wikipedia` and `arxiv`; Tavily, Python REPL and Yahoo Finance News require the existing factories. Yahoo Finance News defers its yfinance import until execution, so the new adapter validates that dependency during construction.

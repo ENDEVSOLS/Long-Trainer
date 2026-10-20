@@ -121,6 +121,8 @@ brew install libmagic poppler tesseract qpdf libreoffice pandoc
 
 ## Quick Start 🚀
 
+LongTrainer 1.4.0 requires **Python 3.11 or newer**. Python 3.12 is recommended for development. Upgrade Python 3.10 environments before installing this version.
+
 ### 🎬 Complete Workflow Demo
 
 <p align="center">

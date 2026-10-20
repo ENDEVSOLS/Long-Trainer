@@ -4,7 +4,7 @@ version = "1.4.0"
 description = "Production-ready RAG framework built on LangChain — multi-tenant chatbots with streaming, tool calling, agent mode, FAISS vector search, and persistent MongoDB memory"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{ name = "Endevsols", email = "technology@endevsols.com" }]
 keywords = [
     "rag",
@@ -39,7 +39,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Typing :: Typed",
@@ -104,7 +103,7 @@ build-backend = "hatchling.build"
 packages = ["longtrainer"]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 120
 
 [tool.ruff.lint]

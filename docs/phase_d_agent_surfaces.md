@@ -1,5 +1,7 @@
 # Phase D implementation and verification
 
+> Historical verification record: Python 3.10 results and reproduction commands below predate the minimum-version change on 7 October 2026. Current installation requires Python 3.11+, and CI tests Python 3.11/3.12.
+
 Implemented locally on `feat/agent-types-surfaces`, retaining the uncommitted Phase B/C changes. Phase D adds purpose selection to the existing HTTP build route and CLI, registers the agent guide, and completes local docs/example verification. No commit, push, remote CI run or publication was performed.
 
 ## Adopted interface decisions
