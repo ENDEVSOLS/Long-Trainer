@@ -2,9 +2,8 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.4.0] — In development
+## [1.4.0] — `2026-10-6`
 
-Version metadata aligned to `1.4.0` on 6 October 2026. Release date, tag and publication remain pending.
 
 ### ⚠️ Compatibility
 
@@ -20,7 +19,6 @@ Version metadata aligned to `1.4.0` on 6 October 2026. Release date, tag and pub
 ### 📖 Documentation & Interfaces
 
 - Remove the internal `testing-folder/LONGTRAINER_ROADMAP.md` from the repository; public configuration guidance remains in the named-agent guide.
-
 - Add optional `agent_type` to the existing HTTP build request; invalid names return HTTP 400 with supported names.
 - Add `longtrainer build [BOT_ID] --agent-type ...` and purpose selection on `bot create`, preserving existing CLI options and explicit empty tool overrides.
 - Register the named-agent guide, document infrastructure-only YAML and interface precedence, and consolidate duplicate migration navigation entries.
@@ -28,7 +26,6 @@ Version metadata aligned to `1.4.0` on 6 October 2026. Release date, tag and pub
 ### 🧪 Testing & CI
 
 - Install the parser model explicitly in CI rather than relying on a transitive spaCy dependency; keep all Python matrix jobs running when one fails.
-
 - Collect the full `tests/` suite on Python 3.11 and 3.12, including rate-limiter tests and 17 relocated bug-fix regressions.
 - Make legacy script checks and lazy-loading integration setup failures fail pytest; reject tests returning non-`None` values.
 - Add 16 offline lazy-loading cases, two failure-signaling regressions, and a separate MongoDB/in-memory Qdrant CI job with an `integration` dependency extra.
@@ -42,7 +39,6 @@ Version metadata aligned to `1.4.0` on 6 October 2026. Release date, tag and pub
 - Identify Wikipedia requests with a project user agent so live lookups satisfy the service's request policy.
 - Fall back to Yahoo Finance's news-search headlines, including source links and publication timestamps, when ticker article lookup returns no news.
 - Parse provider text blocks into strings for structured and vision responses and agent invocation and synchronous/asynchronous streaming, including Gemini responses.
-
 - Extract reusable JSON-schema validation, deterministic schema hashing, concise error feedback, and one-retry response repair into `longtrainer.structured`.
 - Preserve structured chat dictionaries and successful-only history updates; copy retry messages, remove dead message construction and the temporary Ruff lambda exception, and honor invocation configuration on both attempts.
 - Add structured bot/chat/API boundary regressions; retain unused schema registry methods without adding persistence side effects.
@@ -50,23 +46,27 @@ Version metadata aligned to `1.4.0` on 6 October 2026. Release date, tag and pub
 ## [1.3.1] — 2026-05-07
 
 ### ✨ New Features
+
 - **Tenant Rate Limiting**: Two-layer execution rate limiting system using a token-bucket algorithm. Layer 1 enforces per-tenant RPM ceilings, Layer 2 enforces equal-share budgets across bots within a tenant. Fully configurable via `longtrainer.yaml` or `RateLimitConfig`.
 - **Per-Bot Overrides**: Fine-grained rate limit overrides for specific bots via `bot_overrides` configuration.
 - **CLI Rate Limit Recovery**: The `longtrainer chat` and `longtrainer add-doc` commands now auto-retry with a progress bar when rate limits are hit.
 - **API 429 Responses**: FastAPI server returns proper `429 Too Many Requests` with `Retry-After` headers when rate limits are exceeded.
 
 ### 🔧 Improvements
+
 - **Interactive Demo**: Added `demos/longtrainer_demo.py` — a complete RAG workflow demo with live Rich progress tracking. Fully env-var driven (supports OpenAI, Gemini, Ollama, any vector store) with zero hardcoded config.
 - **CLI Cleanup**: Reverted CLI from Rich TUI panels to clean `click.echo/secho` output. Removed `rich>=13.0` from core dependencies.
 - **Removed VHS/TUI assets**: Cleaned up `.tape` files, `Makefile`, and demo GIFs from the repository.
 
 ### 📖 Documentation
+
 - New `rate_limiting.md` guide covering two-layer enforcement, YAML configuration, API error handling, and CLI auto-retry.
 - Updated README with embedded demo screenshot and streamlined Quick Start section.
 
 ## [1.3.0] — 2026-05-01
 
 ### ✨ New Features
+
 - **LongTracer Integration**: Native, optional support for LongTracer hallucination detection and observability.
   - Automatically captures spans, latencies, and token counts for LLM calls and retriever queries.
   - Provides claim verification via `CitationVerifier` using hybrid STS and NLI for RAG, Vision, and Structured bot responses.
@@ -76,27 +76,30 @@ Version metadata aligned to `1.4.0` on 6 October 2026. Release date, tag and pub
 ## [1.2.3] — 2026-04-29
 
 ### 🚀 Performance & Scalability
+
 - **Lazy Loading Chat Histories:** Significantly optimized startup time and RAM consumption. `load_bot()` no longer eagerly loads all chat histories into RAM. Instead, chat histories are lazy-loaded on-demand from MongoDB via new `_ensure_chat_loaded()` and `_ensure_vision_chat_loaded()` methods.
 - **Qdrant Initialization Fix:** Fixed a bug in `vectorstores.py` where passing `:memory:` to Qdrant would fail due to improper URL parsing. In-memory fallback is now properly handled via the `location` parameter.
 
 ## [1.2.2] — 2026-04-11
 
 ### 🐛 Bug Fixes & Perf Improvements
+
 - **Async Document Ingestion:** Implemented `aadd_document_from_path` and `aadd_document_from_link` with parallel ingestion via `ThreadPoolExecutor` and `asyncio.gather()`. Batch document ingestion is now non-blocking and significantly faster.
 - **Retrieval Confidence Scores:** Added `invoke_vectorstore_with_scores()` which returns the raw FAISS L2 distance and automatically injects a normalized `retrieval_score` (1.0 = perfect match) into document metadata.
 - **KeyError Bug:** Fixed a crash during `update_chatbot()` caused by an obsolete `faiss_path` dictionary reference.
 - **Documentation:** Added a new comprehensive implementation roadmap `/testing-folder/LONGTRAINER_ROADMAP.md` covering Phase 3 through Phase 10.
 
-
 ## [1.1.0] — 2026-02-21
 
 ### ✨ New Features
+
 - **Zero-Code CLI**: Introduced `longtrainer` command-line interface. Use `longtrainer init` for interactive project scaffolding (generates `longtrainer.yaml`) and `longtrainer serve` to start the REST API.
 - **FastAPI REST Server**: Shipped a comprehensive built-in API server (`longtrainer.api:app`) with 16 endpoints covering bot management, document ingestion, sync/streaming chat, vision chat, and vector search.
 - **Lazy Initialization**: Trainer instance now defers LLM connection initialization until the first API call, allowing the server to start successfully (`/health` check passes) without an `OPENAI_API_KEY`.
 - **API Documentation**: Auto-generated Swagger UI available at `/docs` when serving the API.
 
 ### 📦 Dependencies
+
 - Added `click>=8.0` and `pyyaml>=6.0` to core dependencies for CLI and configuration management.
 - Added `[cli]` optional dependency group (`click`, `pyyaml`).
 - Automatically installs `fastapi` and `uvicorn` when using the `[api]` extra.
