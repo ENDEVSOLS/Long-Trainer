@@ -2,10 +2,10 @@
   <img src="https://github.com/mohsin1218/Long-Trainer/blob/master/assets/longtrainer.png?raw=true" alt="LongTrainer Logo" width="320">
 </p>
 
-<h1 align="center">LongTrainer 1.4.0 — Production-Ready RAG Framework</h1>
+<h1 align="center">LongTrainer — Production-Ready RAG Framework</h1>
 
 <p align="center">
-  <strong>Multi-tenant bots, streaming, tools, and persistent memory — all batteries included.</strong>
+  <strong>Multi-tenant bots, streaming, specialized agents, and persistent memory — batteries included.</strong>
 </p>
 
 <p align="center">
@@ -28,25 +28,18 @@
   <a href="https://github.com/ENDEVSOLS/Long-Trainer/blob/master/LICENSE">
     <img src="https://img.shields.io/github/license/ENDEVSOLS/Long-Trainer" alt="License">
   </a>
-  
 </p>
 
 <p align="center">
   <a href="https://endevsols.github.io/Long-Trainer/">Documentation</a> •
+  <a href="#installation">Installation</a> •
   <a href="#quick-start-">Quick Start</a> •
   <a href="#features-">Features</a> •
-  <a href="#migration-from-034">Migration from 0.3.4</a> 
+  <a href="#api-reference">API Reference</a> •
+  <a href="CHANGELOG.md">Changelog</a>
 </p>
 
 ---
-
-
-> [!TIP]
-> This package is part of the **[EnDevSols Long-Suite](https://github.com/ENDEVSOLS/Long-Suite)**—the definitive lifecycle for production RAG. Join our **[Central Community Hub](https://github.com/ENDEVSOLS/Long-Suite/discussions)** for architecture advice and support.
-> 
----
-
-> **Development status:** The `1.4.0` agent-type features are implemented in this checkout and locally verified. Package version metadata is aligned to `1.4.0`; this release has not been published. Use the source-install instructions below for the new interfaces.
 
 ## What is LongTrainer?
 
@@ -88,7 +81,7 @@ pip install longtrainer[agent]
 pip install longtrainer[tracer]
 ```
 
-### Source installation for 1.4.0 release preparation
+### Source installation
 
 From the `Long-Trainer/` checkout, install the extra for the purpose you need:
 
@@ -121,7 +114,7 @@ brew install libmagic poppler tesseract qpdf libreoffice pandoc
 
 ## Quick Start 🚀
 
-LongTrainer 1.4.0 requires **Python 3.11 or newer**. Python 3.12 is recommended for development. Upgrade Python 3.10 environments before installing this version.
+LongTrainer requires **Python 3.11 or newer**. Python 3.12 is recommended for development. Upgrade Python 3.10 environments before installing this version.
 
 ### 🎬 Complete Workflow Demo
 
@@ -221,7 +214,7 @@ async for chunk in trainer.aget_response("Explain the methodology", bot_id, chat
     print(chunk, end="", flush=True)
 ```
 
-### 3. Named Agent Types — 1.4.0
+### 3. Named Agent Types
 
 Choose a purpose to select its default prompt, tools and execution mode:
 
@@ -362,7 +355,7 @@ trainer.create_bot(
 
 ### Core
 
-- ✅ **Named Purposes (1.4.0 checkout):** Research, coding, financial news and document-grounded customer support
+- ✅ **Named Purposes:** Research, coding, financial news and document-grounded customer support
 - ✅ **Structured JSON Responses:** Schema validation with one retry; existing dictionary response contract
 - ✅ **Dual Mode:** RAG (LCEL chain) for simple Q&A, Agent (LangGraph) for tool calling
 - ✅ **Streaming Responses:** Sync and async streaming out of the box
@@ -493,29 +486,6 @@ Local verification recorded **142 passing tests with MongoDB integration on Pyth
 
 ---
 
-## Migration from 0.3.4
-
-LongTrainer 1.0.0 is a major upgrade with breaking changes:
-
-| 0.3.4 | 1.0.0 |
-|---|---|
-| `ConversationalRetrievalChain` | LCEL chain (`RAGBot`) or LangGraph agent (`AgentBot`) |
-| `requirements.txt` + `setup.py` | `pyproject.toml` (UV/pip compatible) |
-| No streaming | `stream=True` or `aget_response()` |
-| No tool calling | `add_tool()` + `agent_mode=True` |
-| `langchain.memory` | `langchain_core.chat_history` |
-| Fixed LLM for all bots | Per-bot LLM, embeddings, and config |
-
-**Upgrade path:**
-```bash
-pip install --upgrade longtrainer
-```
-
-The core API (`initialize_bot_id`, `create_bot`, `new_chat`, `get_response`) remains the same — existing code should work with minimal changes. The main difference is `get_response()` now returns `(answer, sources)` instead of `(answer, sources, web_sources)`.
-
----
-
-
 ## Part of the Long Suite
 
 LongTrainer is part of the **Long Suite** — a collection of tools for building, testing, and monitoring production RAG systems.
@@ -524,6 +494,8 @@ LongTrainer is part of the **Long Suite** — a collection of tools for building
 |---|---|
 | **[LongParser](https://github.com/ENDEVSOLS/LongParser)** | Document ingestion and chunking |
 | **[LongTrainer](https://github.com/ENDEVSOLS/Long-Trainer)** | RAG chatbot framework *(you are here)* |
+| **[LongGuard](https://github.com/ENDEVSOLS/LongGuard)** | In-flight circuit breaker and reasoning loop recovery for agents |
+| **[LongCache](https://github.com/ENDEVSOLS/LongCache)** | Semantic similarity cache for LLM and RAG pipelines |
 | **[LongTracer](https://github.com/ENDEVSOLS/LongTracer)** | Hallucination detection and tracing |
 | **[LongProbe](https://github.com/ENDEVSOLS/LongProbe)** | Retrieval regression testing |
 
